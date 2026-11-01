@@ -559,6 +559,25 @@ int __init arm_add_memory(phys_addr_t start, phys_addr_t size)
 	size -= start & ~PAGE_MASK;
 	bank->start = PAGE_ALIGN(start);
 
+	/*
+	 * RAM below PHYS_OFFSET cannot be mapped by the kernel: drop it
+	 * (backport of the mainline check, needed when the bootloader
+	 * describes memory starting below the kernel's PHYS_OFFSET).
+	 */
+	if (bank->start < PHYS_OFFSET) {
+		if (bank->start + size <= PHYS_OFFSET) {
+			pr_info("Ignoring memory below PHYS_OFFSET: 0x%08llx-0x%08llx\n",
+				(unsigned long long)bank->start,
+				(unsigned long long)bank->start + size);
+			return -EINVAL;
+		}
+		pr_info("Ignoring memory below PHYS_OFFSET: 0x%08llx-0x%08llx\n",
+			(unsigned long long)bank->start,
+			(unsigned long long)PHYS_OFFSET);
+		size -= PHYS_OFFSET - bank->start;
+		bank->start = PHYS_OFFSET;
+	}
+
 #ifndef CONFIG_LPAE
 	if (bank->start + size < bank->start) {
 		printk(KERN_CRIT "Truncating memory at 0x%08llx to fit in "
