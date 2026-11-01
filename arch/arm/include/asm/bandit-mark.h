@@ -17,7 +17,9 @@
 #define BANDIT_FB_STRIDE	4320		/* 1080 pixels * 4 bytes */
 #define BANDIT_MARK_ROWS	100
 #define BANDIT_MARK_STEP	120
-#define BANDIT_PANIC_ROW	1600
+#define BANDIT_PANIC_ROW	1860	/* 60 rows at the bottom */
+#define BANDIT_CON_TOP		1070	/* text console: rows 1070-1840 */
+#define BANDIT_CON_BOTTOM	1840
 
 #define BANDIT_RED		0xFFFF0000
 #define BANDIT_ORANGE		0xFFFF8000
