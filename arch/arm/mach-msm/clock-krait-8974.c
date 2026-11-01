@@ -28,6 +28,7 @@
 #include <mach/clk-provider.h>
 #include <mach/clock-generic.h>
 #include <mach/clk.h>
+#include <mach/tz-restricted.h>
 #include "clock-krait.h"
 #include "clock.h"
 
@@ -862,6 +863,16 @@ static int clock_krait_8974_driver_probe(struct platform_device *pdev)
 	pr_info("L2 @ %lu KHz\n", clk_get_rate(&l2_clk.c) / 1000);
 	for_each_possible_cpu(cpu) {
 		struct clk *c = cpu_clk[cpu];
+
+		/*
+		 * Windows Phone firmware (Lumia 1520) keeps the secondary
+		 * cores parked: reprogramming their HFPLL, mux and regulator
+		 * resets the SoC with no log. Leave offline cores alone.
+		 */
+		if (msm_tz_restricted() && !cpu_online(cpu)) {
+			pr_info("CPU%d offline, clock left as set by the firmware\n", cpu);
+			continue;
+		}
 		cur_rate = clk_get_rate(c);
 		if (!cur_rate) {
 			pr_info("CPU%d @ unknown rate. Forcing new rate.\n",
