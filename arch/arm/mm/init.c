@@ -206,6 +206,18 @@ static void __init arm_bootmem_init(unsigned long start_pfn,
 		unsigned long start = memblock_region_reserved_base_pfn(reg);
 		unsigned long end = memblock_region_reserved_end_pfn(reg);
 
+		/*
+		 * A device tree may reserve memory below the first RAM bank
+		 * (for example below PHYS_OFFSET, which the kernel dropped):
+		 * bootmem does not cover it and reserve_bootmem() would BUG().
+		 */
+		if (end <= start_pfn) {
+			pr_warn("bootmem: ignoring reserved region 0x%08lx-0x%08lx below RAM\n",
+				__pfn_to_phys(start), __pfn_to_phys(end));
+			continue;
+		}
+		if (start < start_pfn)
+			start = start_pfn;
 		if (end >= end_pfn)
 			end = end_pfn;
 		if (start >= end)

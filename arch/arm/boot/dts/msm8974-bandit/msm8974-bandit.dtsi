@@ -268,3 +268,12 @@
 		};
 	};
 };
+
+/*
+ * The MTP/OnePlus splash carve-out (0x03200000) lies below PHYS_OFFSET on
+ * the 1520 (the kernel runs from 0x10000000) and is not the UEFI
+ * framebuffer (0x00400000): reserving it made bootmem BUG() in paging_init.
+ */
+&mdss_fb0 {
+	/delete-property/ qcom,memblock-reserve;
+};
