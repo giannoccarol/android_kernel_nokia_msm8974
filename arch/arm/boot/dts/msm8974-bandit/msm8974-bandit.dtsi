@@ -297,10 +297,36 @@
  * child nodes, so every probe fails with -ECHILD. The 1520 has no RGB or
  * PM8941 flash (its flash is an external part on TLMM GPIO 83/84, stock
  * DSDT QCOM0705) and the keypad backlight is not identified yet: switch
- * them off. The WLED (leds@d800) drives the LCD backlight; it is left as
- * the UEFI set it until its configuration is tested on the phone.
+ * them off. The WLED (leds@d800) drives the LCD backlight: configured
+ * below with the values the UEFI programs.
  */
 &pm8941_lsid1 {
+	/*
+	 * LCD backlight, as the UEFI leaves the PM8941 WLED (registers read
+	 * on an RM-937): 2 strings (CURR_SINK 0x60), 12 mA full scale each,
+	 * OVP 27 V (0x03), boost limit 0x02, switching frequency 0x0B,
+	 * output feedback 0, high pole capacitance 0, internal modulator.
+	 * MDSS drives it through "bkl-trigger" (panel bl_ctrl_wled).
+	 */
+	qcom,leds@d800 {
+		status = "okay";
+		qcom,wled_0 {
+			label = "wled";
+			linux,name = "wled:backlight";
+			linux,default-trigger = "bkl-trigger";
+			qcom,id = <0>;
+			qcom,default-state = "on";
+			qcom,max-current = <12>;
+			qcom,num-strings = <2>;
+			qcom,cs-out-en;
+			qcom,ovp-val = <3>;
+			qcom,boost-curr-lim = <2>;
+			qcom,switch-freq = <11>;
+			qcom,op-fdbck = <0>;
+			qcom,cp-sel = <0>;
+			qcom,ctrl-delay-us = <0>;
+		};
+	};
 	qcom,leds@d000 {
 		status = "disabled";
 	};
@@ -515,7 +541,7 @@
 		qcom,mdss-tear-check-frame-rate = <6000>;
 		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
 		qcom,mdss-dsi-bl-min-level = <1>;
-		qcom,mdss-dsi-bl-max-level = <255>;
+		qcom,mdss-dsi-bl-max-level = <4095>;	/* WLED 12-bit */
 	};
 };
 
