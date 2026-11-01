@@ -46,7 +46,13 @@ endif
    zreladdr-$(CONFIG_ARCH_APQ8064)	:= 0x80208000
 
 # MSM8974
+ifeq ($(CONFIG_MACH_NOKIA_BANDIT),y)
+   # Lumia 1520: keep the low 256 MB (UEFI framebuffer, CPU parking
+   # mailboxes, firmware carve-outs) untouched, as lk1st loads it here
+   zreladdr-$(CONFIG_ARCH_MSM8974)	:= 0x10008000
+else
    zreladdr-$(CONFIG_ARCH_MSM8974)	:= 0x00008000
+endif
         ifeq ($(CONFIG_MACH_FIND7),y)
         dtb-$(CONFIG_ARCH_MSM8974)	+= msm8974pro-ab-pm8941-x9007.dtb
         dtb-$(CONFIG_ARCH_MSM8974)	+= msm8974pro-ac-pm8941-x9076.dtb

@@ -24,35 +24,31 @@
 	};
 
 	/*
-	 * lk1st hands over a flat 2 GB memory node, so the firmware carve-outs
-	 * must be removed here. 0x08000000-0x0ff00000 covers, contiguously:
-	 * modem, mba, wcnss, adsp, venus, smem, tz, rfsa, rmtfs (same map as
+	 * The kernel runs with PHYS_OFFSET 0x10000000 (lk1st loads it at
+	 * 0x10008000), so RAM below 256 MB is not used: it holds the UEFI
+	 * framebuffer (0x00400000), the CPU parking mailboxes (0x00300000)
+	 * and the firmware carve-outs. The carve-outs are listed here as well
+	 * (modem, mba, wcnss, adsp, venus, smem, tz, rfsa, rmtfs; same map as
 	 * mainline qcom-msm8974.dtsi, verified on the 1520 by the mainline
-	 * port: ADSP boots from its standard region).
-	 * 0x05000000 + 8 MB: relocated scanout buffer for the boot console.
+	 * port) so they stay out of the memory map if PHYS_OFFSET changes.
 	 */
 	bandit_mem_hole: bandit,mem-hole {
 		compatible = "nokia,bandit-mem-hole";
-		qcom,memblock-remove = <0x08000000 0x07f00000
-					0x05000000 0x00800000>;
+		qcom,memblock-remove = <0x08000000 0x07f00000>;
 	};
 
 	/*
-	 * Boot console on the panel left running by the UEFI (1080x1920,
-	 * 32 bpp). The UEFI buffer at 0x00400000 is overwritten by the
-	 * decompressed kernel, so the MDP RGB0 pipe is pointed to a new
-	 * buffer (register found by the mainline port, flush values from the
-	 * Lumia 930 lk2nd fork).
+	 * Boot console on the panel and buffer left running by the UEFI
+	 * (1080x1920, 32 bpp, address read from the MDP RGB0 pipe by the
+	 * mainline port). The display hardware is not touched.
 	 */
-	framebuffer@5000000 {
+	framebuffer@400000 {
 		compatible = "simple-framebuffer";
-		reg = <0x05000000 0x00800000>;
+		reg = <0x00400000 0x00800000>;
 		width = <1080>;
 		height = <1920>;
 		stride = <4320>;
 		format = "a8r8g8b8";
-		nokia,scanout-reg = <0xfd901e14>;
-		nokia,scanout-flush = <0xfd900618 0x1 0xfd900718 0x1>;
 	};
 };
 
