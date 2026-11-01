@@ -38,12 +38,14 @@
 	};
 
 	/*
-	 * Boot console on the panel and buffer left running by the UEFI
-	 * (1080x1920, 32 bpp, address read from the MDP RGB0 pipe by the
-	 * mainline port). The display hardware is not touched.
+	 * Buffer left running by the UEFI (1080x1920, 32 bpp, address read
+	 * from the MDP RGB0 pipe by the mainline port). Kept as a fallback
+	 * console without touching the display hardware: enable it and
+	 * disable MDSS below for a software-only display.
 	 */
 	framebuffer@400000 {
 		compatible = "simple-framebuffer";
+		status = "disabled";	/* the panel is driven by MDSS */
 		reg = <0x00400000 0x00800000>;
 		width = <1080>;
 		height = <1920>;
@@ -105,12 +107,20 @@
 		};
 	};
 
-	/* Display: no panel driver yet, the boot console uses simple-framebuffer */
+	/*
+	 * Display: MDSS continuous splash on the command mode panel the
+	 * UEFI leaves on. No reset/enable lines (the MTP ones are not the
+	 * 1520's) and no power-on commands: Windows sends none either.
+	 */
 	qcom,mdss_mdp@fd900000 {
-		status = "disabled";
+		qcom,mdss-pref-prim-intf = "dsi";
 	};
 	qcom,mdss_dsi@fd922800 {
-		status = "disabled";
+		qcom,dsi-pref-prim-pan = <&dsi_bandit_smokey_cmd>;
+		/delete-property/ qcom,platform-reset-gpio;
+		/delete-property/ qcom,platform-enable-gpio;
+		/delete-property/ qcom,platform-te-gpio;
+		nokia,keep-firmware-phy;
 	};
 	qcom,mdss_dsi@fd922e00 {
 		status = "disabled";
@@ -123,10 +133,10 @@
 	};
 
 	/*
-	 * First bring-up: keep off everything that needs TrustZone services
-	 * the Windows Phone firmware may not provide (watchdog register save,
-	 * TZ log, QSEECOM, secure IOMMU/OCMEM for GPU and video).
-	 * They come back one at a time once the phone reaches a shell.
+	 * Keep off everything that needs TrustZone services the Windows Phone
+	 * firmware may not provide (watchdog register save, TZ log, QSEECOM,
+	 * video). OCMEM and the Adreno 330 work: the OCMEM secure calls are
+	 * answered, and kgsl runs without the TZ DCVS governor.
 	 */
 	qcom,tz-log@fe805720 {
 		status = "disabled";
@@ -135,10 +145,10 @@
 		status = "disabled";
 	};
 	qcom,ocmem@fdd00000 {
-		status = "disabled";
+		status = "ok";	/* Adreno 330 GMEM */
 	};
 	qcom,kgsl-3d0@fdb00000 {
-		status = "disabled";
+		status = "ok";
 	};
 	qcom,vidc@fdc00000 {
 		status = "disabled";
@@ -440,4 +450,85 @@
 	qcom,wdt@f9017000 {
 		status = "disabled";
 	};
+};
+
+/*
+ * Panel "Smokey" (stock ACPI panel XML): 1080x1920, 24 bpp, DSI 4 lanes,
+ * command mode, 60 Hz. Bit clock 859.8 Mbps per lane as left by the UEFI
+ * (byte0 107480566 Hz, pclk0 143307421 Hz); porches chosen so that
+ * htotal x vtotal x 60 matches pclk0, vtotal 1925 as the UEFI pingpong.
+ * The PHY is kept as programmed by the firmware (nokia,keep-firmware-phy),
+ * so the PHY timings below are not written to the hardware.
+ */
+&mdss_mdp {
+	dsi_bandit_smokey_cmd: qcom,mdss_dsi_bandit_smokey_cmd {
+		qcom,mdss-dsi-panel-name = "bandit smokey 1080p cmd";
+		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
+		qcom,mdss-dsi-panel-destination = "display_1";
+		qcom,cont-splash-enabled;
+		qcom,mdss-dsi-panel-framerate = <60>;
+		qcom,mdss-dsi-panel-clockrate = <859844528>;
+		qcom,mdss-dsi-virtual-channel-id = <0>;
+		qcom,mdss-dsi-stream = <0>;
+		qcom,mdss-dsi-panel-width = <1080>;
+		qcom,mdss-dsi-panel-height = <1920>;
+		qcom,mdss-pan-physical-width-dimension = <75>;
+		qcom,mdss-pan-physical-height-dimension = <132>;
+		qcom,mdss-dsi-h-front-porch = <100>;
+		qcom,mdss-dsi-h-back-porch = <41>;
+		qcom,mdss-dsi-h-pulse-width = <20>;
+		qcom,mdss-dsi-h-sync-skew = <0>;
+		qcom,mdss-dsi-v-front-porch = <2>;
+		qcom,mdss-dsi-v-back-porch = <2>;
+		qcom,mdss-dsi-v-pulse-width = <1>;
+		qcom,mdss-dsi-h-left-border = <0>;
+		qcom,mdss-dsi-h-right-border = <0>;
+		qcom,mdss-dsi-v-top-border = <0>;
+		qcom,mdss-dsi-v-bottom-border = <0>;
+		qcom,mdss-dsi-bpp = <24>;
+		qcom,mdss-dsi-color-order = "rgb_swap_rgb";
+		qcom,mdss-dsi-underflow-color = <0xff>;
+		qcom,mdss-dsi-border-color = <0>;
+		qcom,mdss-dsi-lane-0-state;
+		qcom,mdss-dsi-lane-1-state;
+		qcom,mdss-dsi-lane-2-state;
+		qcom,mdss-dsi-lane-3-state;
+		qcom,mdss-dsi-lane-map = "lane_map_0123";
+		qcom,mdss-dsi-t-clk-post = <0x1e>;
+		qcom,mdss-dsi-t-clk-pre = <0x33>;
+		qcom,mdss-dsi-panel-timings = [e6 38 26 00 68 aa 2a 3a 2c 03 04 00];
+		qcom,mdss-dsi-wr-mem-start = <0x2c>;
+		qcom,mdss-dsi-wr-mem-continue = <0x3c>;
+		qcom,mdss-dsi-te-dcs-command = <1>;
+		qcom,mdss-dsi-te-pin-select = <0>;
+		qcom,mdss-dsi-mdp-trigger = "none";
+		qcom,mdss-dsi-dma-trigger = "trigger_sw";
+		/* internal vsync counter as left by the UEFI; TE pin later */
+		qcom,mdss-tear-check-disable;
+		qcom,mdss-tear-check-sync-cfg-height = <1925>;
+		qcom,mdss-tear-check-sync-init-val = <0>;
+		qcom,mdss-tear-check-sync-threshold-start = <480>;
+		qcom,mdss-tear-check-sync-threshold-continue = <5>;
+		qcom,mdss-tear-check-start-pos = <3>;
+		qcom,mdss-tear-check-rd-ptr-trigger-intr = <1>;
+		qcom,mdss-tear-check-frame-rate = <6000>;
+		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
+		qcom,mdss-dsi-bl-min-level = <1>;
+		qcom,mdss-dsi-bl-max-level = <255>;
+	};
+};
+
+/* Panel and DSI PHY rails, MDSS GDSC: never cut (no power-on sequence) */
+&pm8941_l2 {
+	regulator-always-on;
+};
+&pm8941_l12 {
+	regulator-always-on;
+};
+&pm8941_l22 {
+	regulator-always-on;
+};
+&gdsc_mdss {
+	regulator-always-on;
 };
