@@ -413,6 +413,41 @@ static struct msm_gpiomux_config bandit_touch_configs[] __initdata = {
 	},
 };
 
+/*
+ * Lumia 1520 sensor buses (BLSP1 QUP3, BLSP2 QUP6): the UEFI leaves these
+ * pins unconfigured too. Function 3 is I2C, as for the other BLSP groups.
+ */
+static struct msm_gpiomux_config bandit_sensor_i2c_configs[] __initdata = {
+	{
+		.gpio      = 10,		/* BLSP1 QUP3 I2C_DAT */
+		.settings = {
+			[GPIOMUX_ACTIVE] = &gpio_i2c_act_config,
+			[GPIOMUX_SUSPENDED] = &gpio_i2c_config,
+		},
+	},
+	{
+		.gpio      = 11,		/* BLSP1 QUP3 I2C_CLK */
+		.settings = {
+			[GPIOMUX_ACTIVE] = &gpio_i2c_act_config,
+			[GPIOMUX_SUSPENDED] = &gpio_i2c_config,
+		},
+	},
+	{
+		.gpio      = 87,		/* BLSP2 QUP6 I2C_DAT */
+		.settings = {
+			[GPIOMUX_ACTIVE] = &gpio_i2c_act_config,
+			[GPIOMUX_SUSPENDED] = &gpio_i2c_config,
+		},
+	},
+	{
+		.gpio      = 88,		/* BLSP2 QUP6 I2C_CLK */
+		.settings = {
+			[GPIOMUX_ACTIVE] = &gpio_i2c_act_config,
+			[GPIOMUX_SUSPENDED] = &gpio_i2c_config,
+		},
+	},
+};
+
 static struct gpiomux_setting hsic_sus_cfg = {
 	.func = GPIOMUX_FUNC_GPIO,
 	.drv = GPIOMUX_DRV_2MA,
@@ -1542,6 +1577,8 @@ void __init msm_8974_init_gpiomux(void)
 		 */
 		msm_gpiomux_install(wcnss_5wire_interface,
 				ARRAY_SIZE(wcnss_5wire_interface));
+		msm_gpiomux_install(bandit_sensor_i2c_configs,
+				ARRAY_SIZE(bandit_sensor_i2c_configs));
 		pr_info("%s: keeping firmware pin configuration\n", __func__);
 		return;
 	}

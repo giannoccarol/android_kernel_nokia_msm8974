@@ -55,6 +55,44 @@
 };
 
 &soc {
+	/*
+	 * Sensor buses, as found by I2C scans in the lumia-1520-mainline port:
+	 * BLSP1 QUP3 (APDS-9930 ambient light/proximity at 0x39, another part
+	 * at 0x68) and BLSP2 QUP6 (two parts at 0x0f and 0x1e). On Windows the
+	 * stock qcSensors driver hands the BLSP2 parts to the ADSP.
+	 */
+	i2c@f9925000 { /* BLSP1 QUP3 */
+		cell-index = <4>;
+		compatible = "qcom,i2c-qup";
+		reg = <0xf9925000 0x1000>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg-names = "qup_phys_addr";
+		interrupts = <0 97 0>;
+		interrupt-names = "qup_err_intr";
+		qcom,i2c-bus-freq = <100000>;
+		qcom,i2c-src-freq = <19200000>;
+		qcom,master-id = <86>;
+		qcom,scl-gpio = <&msmgpio 11 0>;
+		qcom,sda-gpio = <&msmgpio 10 0>;
+	};
+
+	i2c@f9968000 { /* BLSP2 QUP6 */
+		cell-index = <5>;
+		compatible = "qcom,i2c-qup";
+		reg = <0xf9968000 0x1000>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg-names = "qup_phys_addr";
+		interrupts = <0 106 0>;
+		interrupt-names = "qup_err_intr";
+		qcom,i2c-bus-freq = <100000>;
+		qcom,i2c-src-freq = <19200000>;
+		qcom,master-id = <84>;
+		qcom,scl-gpio = <&msmgpio 88 0>;
+		qcom,sda-gpio = <&msmgpio 87 0>;
+	};
+
 	/* Touchscreen: Synaptics PLG0175-02 (RMI4), from the stock DSDT */
 	i2c@f9924000 {
 		synaptics@4b {
