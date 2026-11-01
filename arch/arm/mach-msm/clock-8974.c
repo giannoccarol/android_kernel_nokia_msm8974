@@ -4029,6 +4029,12 @@ static struct branch_clk camss_vfe_vfe_ocmemnoc_clk = {
 static struct branch_clk mdss_ahb_clk = {
 	.cbcr_reg = MDSS_AHB_CBCR,
 	.has_sibling = 1,
+	/*
+	 * Lumia 1520: another master keeps the MDSS AHB branch voted on, so
+	 * every disable warned "status stuck on" with a backtrace (72 times a
+	 * minute with the MDSS driver). Delay instead of polling the status.
+	 */
+	.halt_check = DELAY,
 	.base = &virt_bases[MMSS_BASE],
 	.c = {
 		.dbg_name = "mdss_ahb_clk",
@@ -4367,6 +4373,8 @@ static struct branch_clk oxili_gfx3d_clk = {
 static struct branch_clk oxilicx_ahb_clk = {
 	.cbcr_reg = OXILICX_AHB_CBCR,
 	.has_sibling = 1,
+	/* Stays voted on like mdss_ahb_clk: delay instead of polling */
+	.halt_check = DELAY,
 	.base = &virt_bases[MMSS_BASE],
 	.c = {
 		.dbg_name = "oxilicx_ahb_clk",
