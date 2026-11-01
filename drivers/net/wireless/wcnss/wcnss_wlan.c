@@ -554,6 +554,43 @@ static ssize_t wcnss_version_show(struct device *dev,
 static DEVICE_ATTR(wcnss_version, S_IRUSR,
 		wcnss_version_show, NULL);
 
+/*
+ * hci_qcomm_init (Bluetooth over SMD on Pronto) polls the pre-device-tree
+ * path /sys/devices/platform/wcnss_wlan.0/smd_channel_ready before opening
+ * /dev/smd3. Provide it on a plain device under the platform bus (no bus
+ * type, so the wcnss_wlan driver does not bind to it).
+ */
+static ssize_t wcnss_smd_channel_ready_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return scnprintf(buf, PAGE_SIZE, "%d",
+			penv ? penv->smd_channel_ready : 0);
+}
+
+static DEVICE_ATTR(smd_channel_ready, S_IRUGO,
+		wcnss_smd_channel_ready_show, NULL);
+
+static void wcnss_legacy_dev_release(struct device *dev)
+{
+}
+
+static struct device wcnss_legacy_dev = {
+	.init_name	= "wcnss_wlan.0",
+	.parent		= &platform_bus,
+	.release	= wcnss_legacy_dev_release,
+};
+
+static void wcnss_create_legacy_sysfs(void)
+{
+	if (device_register(&wcnss_legacy_dev)) {
+		pr_err("wcnss: cannot register the legacy wcnss_wlan.0 node\n");
+		put_device(&wcnss_legacy_dev);
+		return;
+	}
+	if (device_create_file(&wcnss_legacy_dev, &dev_attr_smd_channel_ready))
+		pr_err("wcnss: cannot create smd_channel_ready\n");
+}
+
 void wcnss_riva_dump_pmic_regs(void)
 {
 	int i, rc;
@@ -2891,6 +2928,8 @@ wcnss_wlan_probe(struct platform_device *pdev)
 		penv = NULL;
 		return -ENOENT;
 	}
+
+	wcnss_create_legacy_sysfs();
 
 	/* register wcnss event notification */
 	penv->wcnss_notif_hdle = subsys_notif_register_notifier("wcnss", &wnb);
