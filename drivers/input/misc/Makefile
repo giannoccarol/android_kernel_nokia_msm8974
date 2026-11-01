@@ -69,3 +69,7 @@ obj-$(CONFIG_SENSORS_STK3X1X)		+= stk3x1x.o
 obj-$(CONFIG_SENSORS_CAPELLA_CM36283)	+= cm36283.o
 obj-$(CONFIG_BTP_FPC1021)		+= fpc1020_main.o fpc1020_capture.o fpc1020_common.o fpc1020_regulator.o fpc1020_nav.o
 obj-$(CONFIG_HALL_MXM1120)		+= m1120.o
+obj-$(CONFIG_SENSORS_APDS9930_BANDIT)	+= apds9930_bandit.o
+obj-$(CONFIG_SENSORS_L3GD20_BANDIT)	+= l3gd20_bandit.o
+obj-$(CONFIG_SENSORS_LIS2HH12_BANDIT)	+= lis2hh12_bandit.o
+obj-$(CONFIG_SENSORS_HSCDTD008A_BANDIT)	+= hscdtd008a_bandit.o

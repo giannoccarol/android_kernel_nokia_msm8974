@@ -733,4 +733,30 @@ config HALL_MXM1120
 	tristate "Digital hall sensor support"
 	depends on I2C
 
+
+config SENSORS_APDS9930_BANDIT
+	tristate "Avago APDS-9930 light/proximity sensor (Lumia 1520)"
+	depends on I2C
+	help
+	  Ambient light and proximity sensor of the Nokia Lumia 1520,
+	  exposed as the bandit-light and bandit-prox input devices.
+
+config SENSORS_L3GD20_BANDIT
+	tristate "ST L3GD20-compatible gyroscope (Lumia 1520)"
+	depends on I2C
+	help
+	  Gyroscope of the Nokia Lumia 1520, exposed as bandit-gyro.
+
+config SENSORS_LIS2HH12_BANDIT
+	tristate "ST LIS2HH12 accelerometer (Lumia 1520)"
+	depends on I2C
+	help
+	  Accelerometer of the Nokia Lumia 1520, exposed as bandit-accel.
+
+config SENSORS_HSCDTD008A_BANDIT
+	tristate "Alps HSCDTD008A magnetometer (Lumia 1520)"
+	depends on I2C
+	help
+	  Magnetometer of the Nokia Lumia 1520, exposed as bandit-mag.
+
 endif

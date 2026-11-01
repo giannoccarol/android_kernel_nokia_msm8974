@@ -59,7 +59,9 @@
 	 * Sensor buses, as found by I2C scans in the lumia-1520-mainline port:
 	 * BLSP1 QUP3 (APDS-9930 ambient light/proximity at 0x39, another part
 	 * at 0x68) and BLSP2 QUP6 (two parts at 0x0f and 0x1e). On Windows the
-	 * stock qcSensors driver hands the BLSP2 parts to the ADSP.
+	 * stock qcSensors driver hands the BLSP2 parts to the ADSP. All the
+ * sensors are powered from PM8941 L18 (VDD) and LVS3 (VIO), as the stock
+ * ACPI PEP configuration votes them.
 	 */
 	i2c@f9925000 { /* BLSP1 QUP3 */
 		cell-index = <4>;
@@ -75,6 +77,25 @@
 		qcom,master-id = <86>;
 		qcom,scl-gpio = <&msmgpio 11 0>;
 		qcom,sda-gpio = <&msmgpio 10 0>;
+
+		/* \_SB.APS1 (QPDS_APS): interrupt on TLMM GPIO 74, polled for now */
+		light-sensor@39 {
+			compatible = "avago,apds9930";
+			reg = <0x39>;
+			vdd-supply = <&pm8941_l18>;
+			vio-supply = <&pm8941_lvs3>;
+		};
+
+		/*
+		 * \_SB.GYR1 (L3GD20S): ST L3GD20-compatible, WHO_AM_I reads 0x00.
+		 * Interrupts on TLMM GPIO 66 and 68, polled for now.
+		 */
+		gyroscope@68 {
+			compatible = "st,l3gd20-bandit";
+			reg = <0x68>;
+			vdd-supply = <&pm8941_l18>;
+			vio-supply = <&pm8941_lvs3>;
+		};
 	};
 
 	i2c@f9968000 { /* BLSP2 QUP6 */
@@ -91,6 +112,21 @@
 		qcom,master-id = <84>;
 		qcom,scl-gpio = <&msmgpio 88 0>;
 		qcom,sda-gpio = <&msmgpio 87 0>;
+
+		/* Parts of \_SB.SEN1 (QCOM2495), run by the ADSP on Windows */
+		accelerometer@1e {
+			compatible = "st,lis2hh12";
+			reg = <0x1e>;
+			vdd-supply = <&pm8941_l18>;
+			vio-supply = <&pm8941_lvs3>;
+		};
+
+		magnetometer@f {
+			compatible = "alps,hscdtd008a";
+			reg = <0x0f>;
+			vdd-supply = <&pm8941_l18>;
+			vio-supply = <&pm8941_lvs3>;
+		};
 	};
 
 	/* Touchscreen: Synaptics PLG0175-02 (RMI4), from the stock DSDT */
