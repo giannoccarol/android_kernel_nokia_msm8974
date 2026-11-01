@@ -419,3 +419,16 @@
 		status = "disabled";
 	};
 };
+
+/*
+ * Vibration motor on the PM8941 (stock DSDT VIB1 "NOKIA_VIBRA_PMIC", SPMI
+ * SID 1 at 0xC0xx): timed_output/vibrator. Level and timeout as on the
+ * Qualcomm reference boards.
+ */
+&pm8941_lsid1 {
+	qcom,vibrator@c000 {
+		status = "okay";
+		qcom,vib-timeout-ms = <15000>;
+		qcom,vib-vtg-level-mV = <3100>;
+	};
+};
