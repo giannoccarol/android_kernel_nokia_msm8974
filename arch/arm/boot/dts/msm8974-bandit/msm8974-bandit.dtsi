@@ -48,7 +48,7 @@
 		width = <1080>;
 		height = <1920>;
 		stride = <4320>;
-		format = "a8r8g8b8";
+		format = "a8b8g8r8";	/* RGB0 set to R,G,B,A by bandit-splash.c */
 	};
 };
 
