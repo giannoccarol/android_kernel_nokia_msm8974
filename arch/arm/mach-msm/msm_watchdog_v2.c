@@ -27,6 +27,7 @@
 #include <linux/platform_device.h>
 #include <mach/scm.h>
 #include <mach/msm_memory_dump.h>
+#include <mach/tz-restricted.h>
 
 #define MODULE_NAME "msm_watchdog"
 #define WDT0_ACCSCSSNBARK_INT 0
@@ -364,6 +365,15 @@ static void configure_bark_dump(struct msm_watchdog_data *wdog_dd)
 		unsigned addr;
 		int len;
 	} cmd_buf;
+
+	/*
+	 * The Windows Phone TrustZone (Lumia 1520) does not provide the
+	 * register save service: do not send it an unknown SCM call.
+	 */
+	if (msm_tz_restricted()) {
+		pr_info("TrustZone restricted, no register save on dog bite\n");
+		return;
+	}
 
 	wdog_dd->scm_regsave = (void *)__get_free_page(GFP_KERNEL);
 	if (wdog_dd->scm_regsave) {

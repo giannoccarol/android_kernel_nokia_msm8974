@@ -128,9 +128,6 @@
 	 * TZ log, QSEECOM, secure IOMMU/OCMEM for GPU and video).
 	 * They come back one at a time once the phone reaches a shell.
 	 */
-	qcom,wdt@f9017000 {
-		status = "disabled";
-	};
 	qcom,tz-log@fe805720 {
 		status = "disabled";
 	};
@@ -430,5 +427,20 @@
 		status = "okay";
 		qcom,vib-timeout-ms = <15000>;
 		qcom,vib-vtg-level-mV = <3100>;
+	};
+};
+
+/*
+ * APSS watchdog. The Windows Phone firmware leaves it armed: Windows pets
+ * it from its HAL extension (HalExtQCWdogTimer, CSRT timer resource at
+ * 0xf9017000, 32765 Hz, IRQ 35), so with the driver off Android was reset
+ * through PS_HOLD about 10 minutes after boot. Run the kernel driver to
+ * reprogram and pet it, with a wide bark margin for the single busy core.
+ */
+&soc {
+	qcom,wdt@f9017000 {
+		status = "okay";
+		qcom,bark-time = <30000>;
+		qcom,pet-time = <10000>;
 	};
 };
