@@ -1527,6 +1527,13 @@ void __init msm_8974_init_gpiomux(void)
 	if (msm_tz_restricted()) {
 		msm_gpiomux_install(bandit_touch_configs,
 				ARRAY_SIZE(bandit_touch_configs));
+		/*
+		 * Panel TE on the dedicated MDP_VSYNC_P pin (GPIO 12, function
+		 * 1), as the stock panel configuration uses it
+		 * (DSITEUsingDedicatedTEPin).
+		 */
+		msm_gpiomux_install(msm_lcd_te_configs,
+				ARRAY_SIZE(msm_lcd_te_configs));
 		pr_info("%s: keeping firmware pin configuration\n", __func__);
 		return;
 	}

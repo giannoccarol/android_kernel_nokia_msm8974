@@ -528,9 +528,11 @@
 		qcom,mdss-dsi-wr-mem-continue = <0x3c>;
 		qcom,mdss-dsi-te-dcs-command = <1>;
 		qcom,mdss-dsi-te-pin-select = <0>;
+		/* vsync from the panel TE on MDP_VSYNC_P, as on Windows */
+		qcom,mdss-dsi-te-using-te-pin;
 		qcom,mdss-dsi-mdp-trigger = "none";
 		qcom,mdss-dsi-dma-trigger = "trigger_sw";
-		/* internal vsync counter as left by the UEFI; TE pin later */
+		/* no tear check, as in the stock config (DSITECheckEnable) */
 		qcom,mdss-tear-check-disable;
 		qcom,mdss-tear-check-sync-cfg-height = <1925>;
 		qcom,mdss-tear-check-sync-init-val = <0>;
