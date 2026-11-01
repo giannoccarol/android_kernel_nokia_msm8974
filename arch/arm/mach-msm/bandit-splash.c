@@ -18,6 +18,7 @@
 #include <linux/kernel.h>
 #include <linux/io.h>
 #include <linux/clk.h>
+#include <linux/of.h>
 #include <linux/err.h>
 #include <mach/tz-restricted.h>
 
@@ -36,6 +37,7 @@
 
 static int __init bandit_splash_colors(void)
 {
+	struct device_node *np;
 	struct clk *ahb;
 	void __iomem *mdss;
 	u32 ver, fmt, unpack;
@@ -43,6 +45,17 @@ static int __init bandit_splash_colors(void)
 
 	if (!msm_tz_restricted())
 		return 0;
+
+	/*
+	 * Only while the panel is shown through simple-framebuffer: with the
+	 * MDSS driver in charge the pipe belongs to it.
+	 */
+	np = of_find_compatible_node(NULL, NULL, "simple-framebuffer");
+	if (!np || !of_device_is_available(np)) {
+		of_node_put(np);
+		return 0;
+	}
+	of_node_put(np);
 
 	/* Register interface clock; kept on for the lifetime of the splash */
 	ahb = clk_get_sys("mdp.0", "iface_clk");
