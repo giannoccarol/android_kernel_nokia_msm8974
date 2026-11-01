@@ -1528,6 +1528,11 @@ int dsi_panel_device_register(struct device_node *pan_node,
 
 	pinfo->mipi.dsi_phy_db.reg_ldo_mode = of_property_read_bool(
 		ctrl_pdev->dev.of_node, "qcom,regulator-ldo-mode");
+	ctrl_pdata->keep_phy = of_property_read_bool(ctrl_pdev->dev.of_node,
+		"nokia,keep-firmware-phy");
+	if (ctrl_pdata->keep_phy)
+		pr_info("%s: keeping the DSI PHY/PLL set by the firmware\n",
+			__func__);
 
 	data = of_get_property(ctrl_pdev->dev.of_node,
 		"qcom,platform-regulator-settings", &len);

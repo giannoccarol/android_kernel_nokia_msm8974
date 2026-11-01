@@ -238,6 +238,11 @@ int mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 	if (!gpio_is_valid(ctrl_pdata->rst_gpio)) {
 		pr_debug("%s:%d, reset line not configured\n",
 			   __func__, __LINE__);
+		/*
+		 * No reset line (Lumia 1520): the panel is left on by the
+		 * firmware and there is no power-on sequence, leave it alone.
+		 */
+		return rc;
 	}
 
 	pr_debug("%s: enable = %d\n", __func__, enable);

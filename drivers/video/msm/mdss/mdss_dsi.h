@@ -344,6 +344,7 @@ struct mdss_dsi_ctrl_pdata {
 	u32 ulps_phyrst_ctrl_off;
 	bool core_power;
 	bool mmss_clamp;
+	bool keep_phy;
 
 	struct dsi_buf tx_buf;
 	struct dsi_buf rx_buf;

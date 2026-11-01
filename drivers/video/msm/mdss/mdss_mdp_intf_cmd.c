@@ -12,6 +12,7 @@
  */
 
 #include <linux/kernel.h>
+#include <linux/delay.h>
 #include <linux/pm_runtime.h>
 
 #include "mdss_mdp.h"
@@ -990,6 +991,25 @@ int mdss_mdp_cmd_start(struct mdss_mdp_ctl *ctl)
 
 	mdss_mdp_set_intr_callback(MDSS_MDP_IRQ_PING_PONG_COMP, ctx->pp_num,
 				   mdss_mdp_cmd_pingpong_done, ctl);
+
+	/*
+	 * Handoff from the Windows Phone UEFI (Lumia 1520): it leaves the
+	 * pingpong in autorefresh from its own framebuffer. Stop it before the
+	 * driver takes over; a command mode panel keeps the last frame in its
+	 * own memory.
+	 */
+	if (ctl->panel_data->panel_info.cont_splash_enabled) {
+		u32 ar = mdss_mdp_pingpong_read(mixer,
+				MDSS_MDP_REG_PP_AUTOREFRESH_CONFIG);
+
+		if (ar & BIT(31)) {
+			pr_info("%s: pp%d autorefresh 0x%08x, disabling\n",
+				__func__, mixer->num, ar);
+			mdss_mdp_pingpong_write(mixer,
+				MDSS_MDP_REG_PP_AUTOREFRESH_CONFIG, 0);
+			msleep(40);	/* let the frame in flight end */
+		}
+	}
 
 	ret = mdss_mdp_cmd_tearcheck_setup(ctl, true);
 	if (ret) {

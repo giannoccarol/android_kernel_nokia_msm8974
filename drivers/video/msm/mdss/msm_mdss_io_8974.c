@@ -50,6 +50,10 @@ void mdss_dsi_phy_disable(struct mdss_dsi_ctrl_pdata *ctrl)
 	        return;
 	}
 
+	/* PHY owned by the firmware (Lumia 1520): never turn it off */
+	if (ctrl->keep_phy)
+		return;
+
 	/*
 	 * In dual-dsi configuration, the phy should be disabled for the
 	 * first controller only when the second controller is disabled.
@@ -324,6 +328,10 @@ static void mdss_dsi_phy_init(struct mdss_dsi_ctrl_pdata *ctrl)
 		pr_err("%s: Invalid input data\n", __func__);
 		return;
 	}
+
+	/* keep the PHY timings and regulator programmed by the firmware */
+	if (ctrl->keep_phy)
+		return;
 
 	ctrl_rev = MIPI_INP(ctrl->ctrl_base);
 	if (ctrl_rev == MDSS_DSI_HW_REV_103)
@@ -627,7 +635,8 @@ static int mdss_dsi_link_clk_set_rate(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 		return -EINVAL;
 	}
 
-	if (!ctrl_pdata->panel_data.panel_info.cont_splash_enabled) {
+	if (!ctrl_pdata->panel_data.panel_info.cont_splash_enabled &&
+	    !ctrl_pdata->keep_phy) {
 		pr_debug("%s: Set clk rates: pclk=%d, byteclk=%d escclk=%d\n",
 			__func__, ctrl_pdata->pclk_rate,
 			ctrl_pdata->byte_clk_rate, esc_clk_rate);
@@ -867,6 +876,10 @@ static int mdss_dsi_clamp_ctrl(struct mdss_dsi_ctrl_pdata *ctrl, int enable)
 		return -EINVAL;
 	}
 
+	/* no lane clamp and no MMSS_MISC PHY reset on a firmware PHY */
+	if (ctrl->keep_phy)
+		return 0;
+
 	if (!ctrl->mmss_misc_io.base) {
 		pr_err("%s: mmss_misc_io not mapped\nn", __func__);
 		return -EINVAL;
@@ -1017,7 +1030,8 @@ static int mdss_dsi_core_power_ctrl(struct mdss_dsi_ctrl_pdata *ctrl,
 		 * collapse use-case. Issue a phy software reset only when
 		 * unblanking the panel.
 		 */
-		if (pdata->panel_info.blank_state == MDSS_PANEL_BLANK_BLANK)
+		if (pdata->panel_info.blank_state == MDSS_PANEL_BLANK_BLANK &&
+		    !ctrl->keep_phy)
 			mdss_dsi_phy_sw_reset(ctrl->ctrl_base);
 
 		/*
