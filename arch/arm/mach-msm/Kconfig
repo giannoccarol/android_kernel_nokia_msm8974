@@ -1150,6 +1150,16 @@ endmenu
 
 source "arch/arm/mach-msm/oppo/Kconfig"
 
+config MACH_NOKIA_BANDIT
+	bool "Nokia Lumia 1520 (bandit)"
+	depends on ARCH_MSM8974
+	select FB_SIMPLE
+	help
+	  Support for the Nokia Lumia 1520, booted through the Windows Phone
+	  firmware (UEFI -> bootmgr -> BootShim -> lk1st). Its TrustZone does
+	  not implement the SCM boot-address and power-collapse services, so
+	  the kernel avoids them (see tz-restricted.c).
+
 config MSM_STACKED_MEMORY
 	bool "Stacked Memory"
 	default y

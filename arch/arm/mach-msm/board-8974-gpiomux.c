@@ -17,6 +17,7 @@
 #include <mach/board.h>
 #include <mach/gpio.h>
 #include <mach/gpiomux.h>
+#include <mach/tz-restricted.h>
 #include <mach/socinfo.h>
 
 #define KS8851_IRQ_GPIO 94
@@ -135,6 +136,17 @@ static struct gpiomux_setting slimbus = {
 	.pull = GPIOMUX_PULL_KEEPER,
 };
 
+static struct gpiomux_setting gpio_spi_config = {
+	.func = GPIOMUX_FUNC_1,
+	.drv = GPIOMUX_DRV_12MA,
+	.pull = GPIOMUX_PULL_NONE,
+};
+static struct gpiomux_setting __maybe_unused gpio_spi_susp_config = {
+	.func = GPIOMUX_FUNC_GPIO,
+	.drv = GPIOMUX_DRV_2MA,
+	.pull = GPIOMUX_PULL_DOWN,
+};
+
 #if defined(CONFIG_KS8851) || defined(CONFIG_KS8851_MODULE)
 static struct gpiomux_setting gpio_eth_config = {
 	.pull = GPIOMUX_PULL_UP,
@@ -148,16 +160,6 @@ static struct gpiomux_setting gpio_spi_cs2_config = {
 	.pull = GPIOMUX_PULL_DOWN,
 };
 
-static struct gpiomux_setting gpio_spi_config = {
-	.func = GPIOMUX_FUNC_1,
-	.drv = GPIOMUX_DRV_12MA,
-	.pull = GPIOMUX_PULL_NONE,
-};
-static struct gpiomux_setting gpio_spi_susp_config = {
-	.func = GPIOMUX_FUNC_GPIO,
-	.drv = GPIOMUX_DRV_2MA,
-	.pull = GPIOMUX_PULL_DOWN,
-};
 
 static struct gpiomux_setting gpio_spi_cs1_config = {
 	.func = GPIOMUX_FUNC_GPIO,
@@ -1468,6 +1470,15 @@ void __init msm_8974_init_gpiomux(void)
 		socinfo_get_version());
 	if (socinfo_get_version() >= 0x20000)
 		msm_tlmm_misc_reg_write(TLMM_SPARE_REG, 0xf);
+
+	/*
+	 * Nokia Lumia 1520: the MTP pin tables do not describe this board.
+	 * Keep the pin configuration left by the UEFI (I2C, touch, WCNSS).
+	 */
+	if (msm_tz_restricted()) {
+		pr_info("%s: keeping firmware pin configuration\n", __func__);
+		return;
+	}
 
 #if defined(CONFIG_KS8851) || defined(CONFIG_KS8851_MODULE)
 	if (!(of_board_is_dragonboard() && machine_is_apq8074()))

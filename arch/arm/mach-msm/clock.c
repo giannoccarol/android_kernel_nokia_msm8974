@@ -25,6 +25,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/mutex.h>
 #include <trace/events/power.h>
+#include <mach/tz-restricted.h>
 #include <mach/clk-provider.h>
 #include "clock.h"
 
@@ -829,6 +830,17 @@ static int __init clock_late_init(void)
 		if (ret)
 			pr_err("%s: %pS failed late_init.\n", __func__,
 				initdata);
+	}
+
+	/*
+	 * On firmware-booted phones (Lumia 1520) the display and other blocks
+	 * run on clocks left on by the UEFI; keep them until drivers own them.
+	 */
+	if (msm_tz_restricted()) {
+		pr_info("%s: keeping handed-off clocks on (firmware boot)\n",
+			__func__);
+		mutex_unlock(&msm_clock_init_lock);
+		return ret;
 	}
 
 	list_for_each_entry_safe(h, h_temp, &handoff_list, list) {

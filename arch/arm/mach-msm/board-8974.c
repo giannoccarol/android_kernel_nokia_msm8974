@@ -39,6 +39,9 @@
 #include <mach/rpm-regulator-smd.h>
 #include <mach/socinfo.h>
 #include <mach/msm_smem.h>
+#include <mach/memory.h>
+#include <mach/tz-restricted.h>
+#include <linux/persistent_ram.h>
 #include "board-dt.h"
 #include "clock.h"
 #include "devices.h"
@@ -47,8 +50,44 @@
 #include "modem_notifier.h"
 #include "platsmp.h"
 
+/*
+ * Nokia Lumia 1520: lk1st passes a flat memory map, the firmware carve-outs
+ * are removed by the "nokia,bandit-mem-hole" node (qcom,memblock-remove).
+ */
+EXPORT_COMPAT("nokia,bandit-mem-hole");
+
+#ifdef CONFIG_ANDROID_PERSISTENT_RAM
+/*
+ * ram_console placed where lk2nd looks for ramoops: base = SCRATCH_ADDR
+ * (0x11000000) + max flash size (512 MB) - 512 KB, console in the upper
+ * 256 KB. After a crash and warm reset, "fastboot oem ramoops console"
+ * in lk1st returns the kernel log.
+ */
+static struct persistent_ram_descriptor bandit_prd[] __initdata = {
+	{
+		.name = "lk2nd_ramoops_dump",	/* unused, keeps the lk2nd layout */
+		.size = SZ_256K,
+	},
+	{
+		.name = "ram_console",
+		.size = SZ_256K,
+	},
+};
+
+static struct persistent_ram bandit_pr __initdata = {
+	.descs = bandit_prd,
+	.num_descs = ARRAY_SIZE(bandit_prd),
+	.start = 0x30f80000,
+	.size = SZ_512K,
+};
+#endif
+
 void __init msm_8974_reserve(void)
 {
+#ifdef CONFIG_ANDROID_PERSISTENT_RAM
+	if (msm_tz_restricted_early())
+		persistent_ram_early_init(&bandit_pr);
+#endif
 	of_scan_flat_dt(dt_scan_for_memory_reserve, NULL);
 }
 
@@ -138,8 +177,18 @@ void __init msm8974_init(void)
 		pr_err("%s: socinfo_init() failed\n", __func__);
 
 	msm_8974_init_gpiomux();
-	regulator_has_full_constraints();
+	/*
+	 * Firmware-booted phones: rails left on by the UEFI (panel, touch,
+	 * sensors) have no consumer yet; without full constraints the
+	 * regulator core leaves unused rails on instead of cutting them.
+	 */
+	if (!msm_tz_restricted())
+		regulator_has_full_constraints();
 	msm8974_add_drivers();
+#ifdef CONFIG_ANDROID_RAM_CONSOLE
+	if (msm_tz_restricted())
+		platform_device_register_simple("ram_console", -1, NULL, 0);
+#endif
 }
 
 static const char *msm8974_dt_match[] __initconst = {

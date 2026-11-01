@@ -31,6 +31,7 @@
 #include <asm/suspend.h>
 #include <asm/cacheflush.h>
 #include <asm/outercache.h>
+#include <mach/tz-restricted.h>
 #include <mach/remote_spinlock.h>
 #include <mach/scm.h>
 #include <mach/msm_bus.h>
@@ -774,6 +775,10 @@ static enum msm_pm_time_stats_id (*execute[MSM_PM_SLEEP_MODE_NR])(bool idle) = {
 bool msm_cpu_pm_check_mode(unsigned int cpu, enum msm_pm_sleep_mode mode,
 		bool from_idle)
 {
+	/* Only WFI: every other mode goes through TrustZone */
+	if (msm_tz_restricted() && mode != MSM_PM_SLEEP_MODE_WAIT_FOR_INTERRUPT)
+		return false;
+
 	int idx = MSM_PM_MODE(cpu, mode);
 	struct msm_pm_platform_data *d = &msm_pm_sleep_modes[idx];
 
@@ -799,6 +804,9 @@ int msm_cpu_pm_enter_sleep(enum msm_pm_sleep_mode mode, bool from_idle)
 	if (!from_idle)
 		pr_info("CPU%u: %s mode:%d\n",
 			smp_processor_id(), __func__, mode);
+
+	if (msm_tz_restricted())
+		mode = MSM_PM_SLEEP_MODE_WAIT_FOR_INTERRUPT;
 
 	if (from_idle)
 		time = sched_clock();

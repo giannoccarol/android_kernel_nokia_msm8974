@@ -23,6 +23,7 @@
 #include <asm/mach-types.h>
 #include <asm/smp_plat.h>
 
+#include <mach/tz-restricted.h>
 #include <mach/socinfo.h>
 #include <mach/hardware.h>
 #include <mach/msm_iomap.h>
@@ -357,6 +358,19 @@ static void __init msm_platform_smp_prepare_cpus(unsigned int max_cpus)
 {
 	int cpu, map;
 	unsigned int flags = 0;
+
+	/*
+	 * No SCM cold-boot address on restricted TrustZone firmware: the call
+	 * resets the SoC. Secondary cores stay off until another release
+	 * method (UEFI parking mailboxes) is implemented.
+	 */
+	if (msm_tz_restricted()) {
+		for_each_present_cpu(cpu)
+			if (cpu)
+				set_cpu_present(cpu, false);
+		pr_warn("SMP: TrustZone restricted, secondary CPUs not started\n");
+		return;
+	}
 
 	for_each_present_cpu(cpu) {
 		map = cpu_logical_map(cpu);

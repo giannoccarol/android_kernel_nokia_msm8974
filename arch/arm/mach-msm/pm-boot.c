@@ -18,6 +18,7 @@
 #include "scm-boot.h"
 #include "idle.h"
 #include "pm-boot.h"
+#include <mach/tz-restricted.h>
 
 static void (*msm_pm_boot_before_pc)(unsigned int cpu, unsigned long entry);
 static void (*msm_pm_boot_after_pc)(unsigned int cpu);
@@ -68,6 +69,16 @@ void msm_pm_boot_config_after_pc(unsigned int cpu)
 static int __init msm_pm_boot_init(void)
 {
 	int ret = 0;
+
+	/*
+	 * The warm-boot address is set through TrustZone; on firmware that
+	 * rejects the call the SoC resets. Power collapse is disabled there,
+	 * so no warm-boot vector is needed.
+	 */
+	if (msm_tz_restricted()) {
+		pr_info("pm-boot: TrustZone restricted, warm boot not configured\n");
+		return 0;
+	}
 
 	ret = msm_pm_tz_boot_init();
 	msm_pm_boot_before_pc = msm_pm_config_tz_before_pc;
