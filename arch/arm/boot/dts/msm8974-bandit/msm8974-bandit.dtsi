@@ -278,7 +278,14 @@
 		qcom,rpull-up-kohm = <100>;
 		qcom,vref-batt-therm = <1800000>;
 
-		/include/ "../batterydata-palladium.dtsi"
+		/*
+		 * No BV-4BW profile is available: use the 3000 mAh, 4.20 V
+		 * reference profile. The charger stops at 4.20 V, where the
+		 * 3400 mAh, 4.35 V BV-4BW gives about 3000 mAh, so the state
+		 * of charge follows the real capacity (the 1500 mAh palladium
+		 * profile made it run about 2.3 times too fast).
+		 */
+		/include/ "../batterydata-mtp-3000mah.dtsi"
 	};
 };
 
@@ -290,14 +297,16 @@
 /*
  * Charging for the BV-4BW (3400 mAh, Li-ion, 4.35 V maximum): the PM8941
  * defaults stop at 4.20 V (vddsafe 4.23 V), reduce the current below 10 C
- * and above 45 C (battery thermistor through the BMS) and stop after
- * 150 minutes. Fast charge limited to 1 A for margin.
+ * and above 45 C (battery thermistor through the BMS). Fast charge limited
+ * to 1 A for margin, so the safety timer is raised from 150 to 330 minutes
+ * to let about 3000 mAh in.
  */
 &pm8941_chg {
 	status = "ok";
 	qcom,battery-data = <&bandit_batterydata>;
 	qcom,ibatmax-ma = <1000>;
 	qcom,ibatsafe-ma = <1000>;
+	qcom,tchg-mins = <330>;
 
 	qcom,chgr@1000 {
 		status = "ok";

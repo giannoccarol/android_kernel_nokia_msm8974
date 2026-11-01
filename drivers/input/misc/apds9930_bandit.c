@@ -136,13 +136,13 @@
 static const unsigned int apds_again_tbl[] = { 1, 8, 16, 120 };
 
 /*
- * Glass attenuation x1000. 490 is the datasheet example for its reference
- * glass; the 1520 has much darker glass, so the real value is probably
- * higher. Needs calibration against a lux meter.
+ * Glass attenuation x1000. The Lumia 1520 dark glass passes very little
+ * light: calibrated on an RM-937 against a reference phone at 22 lux
+ * (CH0 163, CH1 34 at 120x gain, 101 ms), giving GA about 51.4.
  */
-static unsigned int als_ga = 490;
+static unsigned int als_ga = 51400;
 module_param(als_ga, uint, 0644);
-MODULE_PARM_DESC(als_ga, "Glass attenuation factor x1000 (needs calibration)");
+MODULE_PARM_DESC(als_ga, "Glass attenuation factor x1000");
 
 /* Initial ALS gain: 1, 8, 16 or 120. 1x reads zero indoors on this phone. */
 static unsigned int als_gain = 8;
