@@ -365,6 +365,54 @@ static struct msm_gpiomux_config msm_touch_configs[] __initdata = {
 
 };
 
+/*
+ * Nokia Lumia 1520: the UEFI does not mux the touch bus (BLSP1 QUP2 on
+ * GPIO 6/7) nor bias the touch interrupt, so these pins are set up even
+ * though the rest of the firmware pin configuration is kept.
+ */
+static struct gpiomux_setting bandit_ts_reset_cfg = {
+	.func = GPIOMUX_FUNC_GPIO,
+	.drv = GPIOMUX_DRV_2MA,
+	.pull = GPIOMUX_PULL_NONE,
+};
+
+static struct gpiomux_setting bandit_ts_int_cfg = {
+	.func = GPIOMUX_FUNC_GPIO,
+	.drv = GPIOMUX_DRV_2MA,
+	.pull = GPIOMUX_PULL_UP,
+	.dir = GPIOMUX_IN,
+};
+
+static struct msm_gpiomux_config bandit_touch_configs[] __initdata = {
+	{
+		.gpio      = 6,		/* BLSP1 QUP2 I2C_DAT */
+		.settings = {
+			[GPIOMUX_ACTIVE] = &gpio_i2c_act_config,
+			[GPIOMUX_SUSPENDED] = &gpio_i2c_config,
+		},
+	},
+	{
+		.gpio      = 7,		/* BLSP1 QUP2 I2C_CLK */
+		.settings = {
+			[GPIOMUX_ACTIVE] = &gpio_i2c_act_config,
+			[GPIOMUX_SUSPENDED] = &gpio_i2c_config,
+		},
+	},
+	{
+		.gpio      = 60,		/* TOUCH ENABLE/RESET */
+		.settings = {
+			[GPIOMUX_ACTIVE] = &bandit_ts_reset_cfg,
+		},
+	},
+	{
+		.gpio      = 61,		/* TOUCH IRQ, pull-up */
+		.settings = {
+			[GPIOMUX_ACTIVE] = &bandit_ts_int_cfg,
+			[GPIOMUX_SUSPENDED] = &bandit_ts_int_cfg,
+		},
+	},
+};
+
 static struct gpiomux_setting hsic_sus_cfg = {
 	.func = GPIOMUX_FUNC_GPIO,
 	.drv = GPIOMUX_DRV_2MA,
@@ -1473,9 +1521,12 @@ void __init msm_8974_init_gpiomux(void)
 
 	/*
 	 * Nokia Lumia 1520: the MTP pin tables do not describe this board.
-	 * Keep the pin configuration left by the UEFI (I2C, touch, WCNSS).
+	 * Keep the pin configuration left by the UEFI (WCNSS and the rest),
+	 * except the touch bus and lines, which the UEFI leaves unconfigured.
 	 */
 	if (msm_tz_restricted()) {
+		msm_gpiomux_install(bandit_touch_configs,
+				ARRAY_SIZE(bandit_touch_configs));
 		pr_info("%s: keeping firmware pin configuration\n", __func__);
 		return;
 	}
