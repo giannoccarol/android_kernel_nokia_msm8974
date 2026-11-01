@@ -18,6 +18,7 @@
 #include <asm/vfp.h>
 
 #include <mach/jtag.h>
+#include <mach/tz-restricted.h>
 #include <mach/msm_rtb.h>
 
 #include "pm.h"
@@ -105,7 +106,15 @@ int platform_cpu_disable(unsigned int cpu)
 	 * we don't allow CPU 0 to be shutdown (it is still too special
 	 * e.g. clock tick interrupts)
 	 */
-	return cpu == 0 ? -EPERM : 0;
+	if (cpu == 0)
+		return -EPERM;
+	/*
+	 * Lumia 1520: a core released from the UEFI parking mailbox cannot be
+	 * parked again (no SCM boot address, no power collapse): no hotplug.
+	 */
+	if (msm_tz_restricted())
+		return -EPERM;
+	return 0;
 }
 
 #define CPU_SHIFT	0

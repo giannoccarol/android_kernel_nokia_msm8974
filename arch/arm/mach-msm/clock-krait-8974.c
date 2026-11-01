@@ -869,8 +869,8 @@ static int clock_krait_8974_driver_probe(struct platform_device *pdev)
 		 * cores parked: reprogramming their HFPLL, mux and regulator
 		 * resets the SoC with no log. Leave offline cores alone.
 		 */
-		if (msm_tz_restricted() && !cpu_online(cpu)) {
-			pr_info("CPU%d offline, clock left as set by the firmware\n", cpu);
+		if (msm_tz_restricted() && cpu != 0) {
+			pr_info("CPU%d clock left as set by the firmware\n", cpu);
 			continue;
 		}
 		cur_rate = clk_get_rate(c);

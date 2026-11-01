@@ -206,6 +206,75 @@ static int __cpuinit arm_release_secondary(unsigned long base, unsigned int cpu)
 	return 0;
 }
 
+/*
+ * Lumia 1520: secondary cores are parked by the UEFI (MpParkDxe) in mailbox
+ * pages at 0x00300000 + (MPIDR.Aff0 + 1) * 0x1000, kept out of the kernel
+ * memory map. Mailbox: +0 target cpu id (0xffffffff when idle), +8/+12
+ * entry address. Publish the entry, then the id, and wake the core with an
+ * SGI to its CPU interface. No SCM, ACC or SAW access. Ported from the
+ * Lumia 930 Linux port (Markynose, lumia930-linux, MIT).
+ */
+#define BANDIT_PARK_BASE	0x00300000
+#define BANDIT_PARK_SIZE	0x00040000
+#define BANDIT_PARK_PAGE	0x1000
+#define BANDIT_GICD_SGIR	0xf9000f00
+
+extern void bandit_park_secondary_startup(void);
+static void __iomem *bandit_park;
+static void __iomem *bandit_sgir;
+
+static void __iomem *bandit_mailbox(unsigned int cpu)
+{
+	return bandit_park + (cpu_logical_map(cpu) + 1) * BANDIT_PARK_PAGE;
+}
+
+static void __init bandit_park_prepare(void)
+{
+	unsigned int cpu;
+
+	bandit_park = ioremap(BANDIT_PARK_BASE, BANDIT_PARK_SIZE);
+	bandit_sgir = ioremap(BANDIT_GICD_SGIR, sizeof(u32));
+	for_each_present_cpu(cpu) {
+		void __iomem *box;
+
+		if (!cpu)
+			continue;
+		if (!bandit_park || !bandit_sgir || cpu_logical_map(cpu) > 3)
+			goto off;
+		box = bandit_mailbox(cpu);
+		if (readl_relaxed(box) != 0xffffffff ||
+		    readl_relaxed(box + 8) || readl_relaxed(box + 12))
+			goto off;
+		pr_info("SMP: CPU%u parked by the UEFI, mailbox %08x\n", cpu,
+			BANDIT_PARK_BASE +
+			(cpu_logical_map(cpu) + 1) * BANDIT_PARK_PAGE);
+		continue;
+off:
+		pr_err("SMP: CPU%u mailbox not idle, keeping it off\n", cpu);
+		set_cpu_present(cpu, false);
+	}
+}
+
+static int __cpuinit bandit_park_release(unsigned int cpu)
+{
+	void __iomem *box = bandit_mailbox(cpu);
+	unsigned int hwid = cpu_logical_map(cpu);
+
+	if (!bandit_park || !bandit_sgir || !hwid || hwid > 3)
+		return -EINVAL;
+	if (readl_relaxed(box) != 0xffffffff || readl_relaxed(box + 8))
+		return -EBUSY;
+	writel_relaxed(0, box + 12);
+	writel_relaxed(virt_to_phys(bandit_park_secondary_startup), box + 8);
+	wmb();
+	writel_relaxed(hwid, box);
+	dsb();
+	writel_relaxed(BIT(hwid + 16), bandit_sgir);	/* SGI0 to that core */
+	dsb();
+	pr_info("SMP: CPU%u released from the UEFI parking mailbox\n", cpu);
+	return 0;
+}
+
 static int __cpuinit release_from_pen(unsigned int cpu)
 {
 	unsigned long timeout;
@@ -284,7 +353,12 @@ int __cpuinit msm8974_boot_secondary(unsigned int cpu, struct task_struct *idle)
 	pr_debug("Starting secondary CPU %d\n", cpu);
 
 	if (per_cpu(cold_boot_done, cpu) == false) {
-		if (of_board_is_sim())
+		if (msm_tz_restricted()) {
+			int ret = bandit_park_release(cpu);
+
+			if (ret)
+				return ret;
+		} else if (of_board_is_sim())
 			release_secondary_sim(0xf9088000, cpu);
 		else if (!of_board_is_rumi())
 			msm8974_release_secondary(0xf9088000, cpu);
@@ -361,14 +435,11 @@ static void __init msm_platform_smp_prepare_cpus(unsigned int max_cpus)
 
 	/*
 	 * No SCM cold-boot address on restricted TrustZone firmware: the call
-	 * resets the SoC. Secondary cores stay off until another release
-	 * method (UEFI parking mailboxes) is implemented.
+	 * resets the SoC. The secondary cores are released from the UEFI
+	 * parking mailboxes instead (bandit_park_release()).
 	 */
 	if (msm_tz_restricted()) {
-		for_each_present_cpu(cpu)
-			if (cpu)
-				set_cpu_present(cpu, false);
-		pr_warn("SMP: TrustZone restricted, secondary CPUs not started\n");
+		bandit_park_prepare();
 		return;
 	}
 
