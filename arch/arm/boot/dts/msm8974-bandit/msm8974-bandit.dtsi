@@ -64,7 +64,11 @@
 			vcc_i2c-supply = <&pm8941_l6>;
 			synaptics,reset-gpio = <&msmgpio 60 0x00>;
 			synaptics,irq-gpio = <&msmgpio 61 0x2008>;
-			synaptics,display-coords = <0 0 1079 1919>;
+			/*
+			 * No display-coords: this driver reports raw sensor
+			 * coordinates, so the axes must use the sensor range
+			 * read from F11/F12 (Android scales it to the panel).
+			 */
 			synaptics,i2c-pull-up;
 		};
 	};
@@ -376,5 +380,20 @@
 		qcom,ion-heap@27 {
 			status = "disabled";
 		};
+	};
+};
+
+/*
+ * rmt_storage (Qualcomm blob from the msm8974 common vendor) refuses to
+ * start without an "oem_data" shared memory UIO, an Oppo addition. Give it
+ * the same 1 MB window as the Oppo device tree: 0x05900000 is below
+ * PHYS_OFFSET on the 1520, so the kernel does not use it, and it stays
+ * clear of the PIL region at 0x05d00000.
+ */
+&soc {
+	oem_data_sharedmem {
+		compatible = "qcom,sharedmem-uio";
+		reg = <0x5900000 0x100000>;
+		reg-names = "oem_data";
 	};
 };
