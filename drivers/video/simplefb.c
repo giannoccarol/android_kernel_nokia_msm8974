@@ -1,0 +1,303 @@
+/*
+ * Simplest possible simple frame-buffer driver, as a platform device
+ *
+ * Copyright (c) 2013, Stephen Warren
+ *
+ * Based on q40fb.c, which was:
+ * Copyright (C) 2001 Richard Zidlicky <rz@linux-m68k.org>
+ *
+ * Also based on offb.c, which was:
+ * Copyright (C) 1997 Geert Uytterhoeven
+ * Copyright (C) 1996 Paul Mackerras
+ *
+ * Backported to the 3.4 MSM kernel for the Nokia Lumia 1520 boot console,
+ * with optional scanout relocation (nokia,scanout-reg / nokia,scanout-flush):
+ * Copyright (c) 2026, Lorenzo Giannoccaro.
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms and conditions of the GNU General Public License,
+ * version 2, as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ */
+
+#include <linux/errno.h>
+#include <linux/fb.h>
+#include <linux/io.h>
+#include <linux/module.h>
+#include <linux/of.h>
+#include <linux/platform_device.h>
+#include <linux/slab.h>
+
+static struct fb_fix_screeninfo simplefb_fix = {
+	.id		= "simple",
+	.type		= FB_TYPE_PACKED_PIXELS,
+	.visual		= FB_VISUAL_TRUECOLOR,
+	.accel		= FB_ACCEL_NONE,
+};
+
+static struct fb_var_screeninfo simplefb_var = {
+	.height		= -1,
+	.width		= -1,
+	.activate	= FB_ACTIVATE_NOW,
+	.vmode		= FB_VMODE_NONINTERLACED,
+};
+
+#define PSEUDO_PALETTE_SIZE 16
+
+static int simplefb_setcolreg(u_int regno, u_int red, u_int green, u_int blue,
+			      u_int transp, struct fb_info *info)
+{
+	u32 *pal = info->pseudo_palette;
+	u32 cr = red >> (16 - info->var.red.length);
+	u32 cg = green >> (16 - info->var.green.length);
+	u32 cb = blue >> (16 - info->var.blue.length);
+	u32 value;
+
+	if (regno >= PSEUDO_PALETTE_SIZE)
+		return -EINVAL;
+
+	value = (cr << info->var.red.offset) |
+		(cg << info->var.green.offset) |
+		(cb << info->var.blue.offset);
+	if (info->var.transp.length > 0) {
+		u32 mask = (1 << info->var.transp.length) - 1;
+		mask <<= info->var.transp.offset;
+		value |= mask;
+	}
+	pal[regno] = value;
+
+	return 0;
+}
+
+static struct fb_ops simplefb_ops = {
+	.owner		= THIS_MODULE,
+	.fb_setcolreg	= simplefb_setcolreg,
+	.fb_fillrect	= cfb_fillrect,
+	.fb_copyarea	= cfb_copyarea,
+	.fb_imageblit	= cfb_imageblit,
+};
+
+struct simplefb_format {
+	const char *name;
+	u32 bits_per_pixel;
+	struct fb_bitfield red;
+	struct fb_bitfield green;
+	struct fb_bitfield blue;
+	struct fb_bitfield transp;
+};
+
+static struct simplefb_format simplefb_formats[] = {
+	{ "r5g6b5", 16, {11, 5}, {5, 6}, {0, 5}, {0, 0} },
+	{ "x8r8g8b8", 32, {16, 8}, {8, 8}, {0, 8}, {0, 0} },
+	{ "a8r8g8b8", 32, {16, 8}, {8, 8}, {0, 8}, {24, 8} },
+	{ "a8b8g8r8", 32, {0, 8}, {8, 8}, {16, 8}, {24, 8} },
+};
+
+struct simplefb_params {
+	u32 width;
+	u32 height;
+	u32 stride;
+	struct simplefb_format *format;
+};
+
+static int simplefb_parse_dt(struct platform_device *pdev,
+			     struct simplefb_params *params)
+{
+	struct device_node *np = pdev->dev.of_node;
+	const char *format;
+	int ret, i;
+
+	ret = of_property_read_u32(np, "width", &params->width);
+	if (ret) {
+		dev_err(&pdev->dev, "Can't parse width property\n");
+		return ret;
+	}
+
+	ret = of_property_read_u32(np, "height", &params->height);
+	if (ret) {
+		dev_err(&pdev->dev, "Can't parse height property\n");
+		return ret;
+	}
+
+	ret = of_property_read_u32(np, "stride", &params->stride);
+	if (ret) {
+		dev_err(&pdev->dev, "Can't parse stride property\n");
+		return ret;
+	}
+
+	ret = of_property_read_string(np, "format", &format);
+	if (ret) {
+		dev_err(&pdev->dev, "Can't parse format property\n");
+		return ret;
+	}
+	params->format = NULL;
+	for (i = 0; i < ARRAY_SIZE(simplefb_formats); i++) {
+		if (strcmp(format, simplefb_formats[i].name))
+			continue;
+		params->format = &simplefb_formats[i];
+		break;
+	}
+	if (!params->format) {
+		dev_err(&pdev->dev, "Invalid format value\n");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+/*
+ * Point the display scanout at this buffer. Used when the buffer the
+ * firmware was scanning out cannot be kept (on the Lumia 1520 it sits where
+ * the kernel is decompressed). Single 32-bit register writes, physical
+ * addresses from the DT:
+ *   nokia,scanout-reg = <address register>;
+ *   nokia,scanout-flush = <reg value> [<reg value> ...];
+ */
+static void simplefb_relocate_scanout(struct platform_device *pdev,
+				      phys_addr_t base)
+{
+	struct device_node *np = pdev->dev.of_node;
+	const __be32 *flush;
+	void __iomem *reg;
+	u32 addr;
+	int len, i;
+
+	if (of_property_read_u32(np, "nokia,scanout-reg", &addr))
+		return;
+
+	reg = ioremap(addr, 4);
+	if (!reg) {
+		dev_err(&pdev->dev, "can't map scanout register\n");
+		return;
+	}
+	writel((u32)base, reg);
+	iounmap(reg);
+
+	flush = of_get_property(np, "nokia,scanout-flush", &len);
+	for (i = 0; flush && i + 1 < len / 4; i += 2) {
+		reg = ioremap(be32_to_cpu(flush[i]), 4);
+		if (!reg)
+			continue;
+		writel(be32_to_cpu(flush[i + 1]), reg);
+		iounmap(reg);
+	}
+	mb();
+	dev_info(&pdev->dev, "scanout moved to %08x\n", (u32)base);
+}
+
+static int __devinit simplefb_probe(struct platform_device *pdev)
+{
+	int ret;
+	struct simplefb_params params;
+	struct fb_info *info;
+	struct resource *mem;
+
+	if (fb_get_options("simplefb", NULL))
+		return -ENODEV;
+
+	ret = simplefb_parse_dt(pdev, &params);
+	if (ret)
+		return ret;
+
+	mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (!mem) {
+		dev_err(&pdev->dev, "No memory resource\n");
+		return -EINVAL;
+	}
+
+	info = framebuffer_alloc(sizeof(u32) * PSEUDO_PALETTE_SIZE, &pdev->dev);
+	if (!info)
+		return -ENOMEM;
+	platform_set_drvdata(pdev, info);
+
+	info->fix = simplefb_fix;
+	info->fix.smem_start = mem->start;
+	info->fix.smem_len = resource_size(mem);
+	info->fix.line_length = params.stride;
+
+	info->var = simplefb_var;
+	info->var.xres = params.width;
+	info->var.yres = params.height;
+	info->var.xres_virtual = params.width;
+	info->var.yres_virtual = params.height;
+	info->var.bits_per_pixel = params.format->bits_per_pixel;
+	info->var.red = params.format->red;
+	info->var.green = params.format->green;
+	info->var.blue = params.format->blue;
+	info->var.transp = params.format->transp;
+
+	info->apertures = alloc_apertures(1);
+	if (!info->apertures) {
+		framebuffer_release(info);
+		return -ENOMEM;
+	}
+	info->apertures->ranges[0].base = info->fix.smem_start;
+	info->apertures->ranges[0].size = info->fix.smem_len;
+
+	info->fbops = &simplefb_ops;
+	info->flags = FBINFO_DEFAULT | FBINFO_MISC_FIRMWARE;
+	info->screen_base = ioremap_wc(info->fix.smem_start,
+				       info->fix.smem_len);
+	if (!info->screen_base) {
+		framebuffer_release(info);
+		return -ENODEV;
+	}
+	info->pseudo_palette = (void *)(info + 1);
+
+	memset_io(info->screen_base, 0, info->fix.smem_len);
+	simplefb_relocate_scanout(pdev, info->fix.smem_start);
+
+	ret = register_framebuffer(info);
+	if (ret < 0) {
+		dev_err(&pdev->dev, "Unable to register simplefb: %d\n", ret);
+		iounmap(info->screen_base);
+		framebuffer_release(info);
+		return ret;
+	}
+
+	dev_info(&pdev->dev, "fb%d: simplefb registered!\n", info->node);
+
+	return 0;
+}
+
+static int __devexit simplefb_remove(struct platform_device *pdev)
+{
+	struct fb_info *info = platform_get_drvdata(pdev);
+
+	unregister_framebuffer(info);
+	iounmap(info->screen_base);
+	framebuffer_release(info);
+
+	return 0;
+}
+
+static const struct of_device_id simplefb_of_match[] = {
+	{ .compatible = "simple-framebuffer", },
+	{ },
+};
+MODULE_DEVICE_TABLE(of, simplefb_of_match);
+
+static struct platform_driver simplefb_driver = {
+	.driver = {
+		.name = "simple-framebuffer",
+		.owner = THIS_MODULE,
+		.of_match_table = simplefb_of_match,
+	},
+	.probe = simplefb_probe,
+	.remove = __devexit_p(simplefb_remove),
+};
+
+static int __init simplefb_init(void)
+{
+	return platform_driver_register(&simplefb_driver);
+}
+/* Early, so the console shows up before the other drivers probe */
+subsys_initcall(simplefb_init);
+
+MODULE_AUTHOR("Stephen Warren <swarren@wwwdotorg.org>");
+MODULE_DESCRIPTION("Simple framebuffer driver");
+MODULE_LICENSE("GPL v2");
