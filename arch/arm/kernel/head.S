@@ -21,6 +21,7 @@
 #include <asm/asm-offsets.h>
 #include <asm/memory.h>
 #include <asm/thread_info.h>
+#include <asm/bandit-mark.h>
 #include <asm/pgtable.h>
 
 #ifdef CONFIG_DEBUG_LL
@@ -93,6 +94,7 @@ ENTRY(stext)
 
 	setmode	PSR_F_BIT | PSR_I_BIT | SVC_MODE, r9 @ ensure svc mode
 						@ and irqs disabled
+	bandit_mark 3, BANDIT_YELLOW, r3, r4, r5	@ bandit: kernel entered
 	mrc	p15, 0, r9, c0, c0		@ get processor id
 	bl	__lookup_processor_type		@ r5=procinfo r9=cpuid
 	movs	r10, r5				@ invalid processor (r5=0)?

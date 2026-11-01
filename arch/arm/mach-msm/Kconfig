@@ -1150,6 +1150,16 @@ endmenu
 
 source "arch/arm/mach-msm/oppo/Kconfig"
 
+config BANDIT_BOOT_MARKS
+	bool "Nokia Lumia 1520: coloured boot progress bands on the UEFI framebuffer"
+	depends on MACH_NOKIA_BANDIT
+	help
+	  Bring-up aid. Each early boot stage (zImage decompressor, kernel
+	  entry, paging, memory, scheduler, initcalls) paints a coloured band
+	  on the framebuffer the Windows Phone UEFI leaves running at
+	  0x00400000, and a panic paints a red band at the bottom. Shows how
+	  far the kernel got with no USB and no console. Say N for normal use.
+
 config MACH_NOKIA_BANDIT
 	bool "Nokia Lumia 1520 (bandit)"
 	depends on ARCH_MSM8974

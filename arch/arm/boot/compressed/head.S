@@ -9,6 +9,7 @@
  * published by the Free Software Foundation.
  */
 #include <linux/linkage.h>
+#include <asm/bandit-mark.h>
 
 	.arch	armv7-a
 /*
@@ -135,6 +136,7 @@ start:
  THUMB(		.thumb			)
 1:		mov	r7, r1			@ save architecture ID
 		mov	r8, r2			@ save atags pointer
+		bandit_mark 1, BANDIT_RED, r3, r5, r6	@ bandit: decompressor running
 
 #ifndef __ARM_ARCH_2__
 		/*
@@ -459,6 +461,7 @@ not_relocated:	mov	r0, #0
 		bl	decompress_kernel
 		bl	cache_clean_flush
 		bl	cache_off
+		bandit_mark 2, BANDIT_ORANGE, r0, r1, r2	@ bandit: jumping to the kernel
 		mov	r0, #0			@ must be zero
 		mov	r1, r7			@ restore architecture number
 		mov	r2, r8			@ restore atags pointer

@@ -50,6 +50,7 @@
 #include <asm/mach/arch.h>
 #include <asm/mach/irq.h>
 #include <asm/mach/time.h>
+#include <asm/bandit-mark.h>
 #include <asm/system_info.h>
 #include <asm/system_misc.h>
 #include <asm/traps.h>
@@ -1014,6 +1015,7 @@ void __init setup_arch(char **cmdline_p)
 	arm_memblock_init(&meminfo, mdesc);
 
 	paging_init(mdesc);
+	bandit_mark(4, BANDIT_GREEN);
 	request_standard_resources(mdesc);
 
 	if (mdesc->restart)

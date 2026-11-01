@@ -42,6 +42,7 @@
 #include <mach/memory.h>
 #include <mach/tz-restricted.h>
 #include <linux/persistent_ram.h>
+#include <asm/bandit-mark.h>
 #include "board-dt.h"
 #include "clock.h"
 #include "devices.h"
@@ -157,6 +158,8 @@ static struct of_dev_auxdata msm8974_auxdata_lookup[] __initdata = {
 static void __init msm8974_map_io(void)
 {
 	msm_map_8974_io();
+	if (msm_tz_restricted_early())	/* flat DT: not unflattened yet */
+		bandit_marks_map_io();
 }
 
 void __init msm8974_init(void)

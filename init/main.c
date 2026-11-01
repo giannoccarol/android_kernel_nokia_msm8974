@@ -74,6 +74,9 @@
 #include <asm/io.h>
 #include <asm/bugs.h>
 #include <asm/setup.h>
+#ifdef CONFIG_ARM
+#include <asm/bandit-mark.h>
+#endif
 #include <asm/sections.h>
 #include <asm/cacheflush.h>
 
@@ -525,6 +528,7 @@ asmlinkage void __init start_kernel(void)
 	sort_main_extable();
 	trap_init();
 	mm_init();
+	bandit_mark(5, BANDIT_CYAN);
 
 	/*
 	 * Set up the scheduler prior starting any interrupts (such as the
@@ -643,6 +647,7 @@ asmlinkage void __init start_kernel(void)
 
 	ftrace_init();
 
+	bandit_mark(6, BANDIT_BLUE);
 	/* Do the rest non-__init'ed, we're now alive */
 	rest_init();
 }
@@ -874,7 +879,9 @@ static int __init kernel_init(void * unused)
 	smp_init();
 	sched_init_smp();
 
+	bandit_mark(7, BANDIT_MAGENTA);
 	do_basic_setup();
+	bandit_mark(8, BANDIT_WHITE);
 
 	/* Open the /dev/console on the rootfs, this should never fail */
 	if (sys_open((const char __user *) "/dev/console", O_RDWR, 0) < 0)
