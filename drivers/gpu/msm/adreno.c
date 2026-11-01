@@ -1570,8 +1570,11 @@ adreno_ocmem_gmem_malloc(struct adreno_device *adreno_dev)
 
 	adreno_dev->ocmem_hdl =
 		ocmem_allocate(OCMEM_GRAPHICS, adreno_dev->gmem_size);
-	if (adreno_dev->ocmem_hdl == NULL)
+	/* ocmem_allocate() returns ERR_PTR() too, e.g. with OCMEM disabled */
+	if (IS_ERR_OR_NULL(adreno_dev->ocmem_hdl)) {
+		adreno_dev->ocmem_hdl = NULL;
 		return -ENOMEM;
+	}
 
 	adreno_dev->gmem_size = adreno_dev->ocmem_hdl->len;
 	adreno_dev->ocmem_base = adreno_dev->ocmem_hdl->addr;
