@@ -431,16 +431,13 @@
 };
 
 /*
- * APSS watchdog. The Windows Phone firmware leaves it armed: Windows pets
- * it from its HAL extension (HalExtQCWdogTimer, CSRT timer resource at
- * 0xf9017000, 32765 Hz, IRQ 35), so with the driver off Android was reset
- * through PS_HOLD about 10 minutes after boot. Run the kernel driver to
- * reprogram and pet it, with a wide bark margin for the single busy core.
+ * APSS watchdog: kept off. Enabling the driver (560ac391) froze the boot at
+ * the watchdog probe and the SoC reset about 10 s later, in a loop: the
+ * Windows Phone firmware does not let Linux program it this way. Why the
+ * system still resets about 10 minutes after boot is open.
  */
 &soc {
 	qcom,wdt@f9017000 {
-		status = "okay";
-		qcom,bark-time = <30000>;
-		qcom,pet-time = <10000>;
+		status = "disabled";
 	};
 };
