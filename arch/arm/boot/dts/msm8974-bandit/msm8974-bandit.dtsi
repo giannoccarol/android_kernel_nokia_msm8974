@@ -432,24 +432,24 @@
 };
 
 /*
- * Modem and WCNSS (Pronto) are off until their bring-up is solved: the PBL
- * rejects the Windows MBA ("PBL returned unexpected status"), and Pronto
- * never signals ready after PAS (mainline port finding). With the nodes on,
- * every QMI/SMD client retried subsystem_get("modem") every 1-2 s
- * (mss_start, MBA load, failure) and the Wi-Fi HAL kept starting WCNSS;
- * the mainline port saw failed Pronto startups end in full device resets,
- * a likely cause of the spontaneous reboots after 10-15 minutes. Without
- * the nodes the requests fail at once.
+ * Modem off until its bring-up is solved: the PBL rejects the Windows MBA
+ * ("PBL returned unexpected status"), and with the node on every QMI/SMD
+ * client retried subsystem_get("modem") every 1-2 s.
+ *
+ * WCNSS (Pronto, Wi-Fi/Bluetooth) on, with the 5-wire link to the iris RF
+ * chip muxed by the board file. The mainline port saw Pronto never signal
+ * ready after PAS, and failed startups end in device resets: watch for
+ * reboots when Wi-Fi is turned on.
  */
 &soc {
 	qcom,mss@fc880000 {
 		status = "disabled";
 	};
 	qcom,pronto@fb21b000 {
-		status = "disabled";
+		status = "ok";
 	};
 	qcom,wcnss-wlan@fb000000 {
-		status = "disabled";
+		status = "ok";
 	};
 };
 

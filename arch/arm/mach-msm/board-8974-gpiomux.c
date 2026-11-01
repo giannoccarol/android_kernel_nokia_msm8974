@@ -1521,8 +1521,9 @@ void __init msm_8974_init_gpiomux(void)
 
 	/*
 	 * Nokia Lumia 1520: the MTP pin tables do not describe this board.
-	 * Keep the pin configuration left by the UEFI (WCNSS and the rest),
-	 * except the touch bus and lines, which the UEFI leaves unconfigured.
+	 * Keep the pin configuration left by the UEFI, except the touch bus
+	 * and lines and the WCNSS 5-wire link (left unconfigured by the UEFI)
+	 * and the panel TE pin.
 	 */
 	if (msm_tz_restricted()) {
 		msm_gpiomux_install(bandit_touch_configs,
@@ -1534,6 +1535,13 @@ void __init msm_8974_init_gpiomux(void)
 		 */
 		msm_gpiomux_install(msm_lcd_te_configs,
 				ARRAY_SIZE(msm_lcd_te_configs));
+		/*
+		 * WCNSS 5-wire link to the iris RF chip (GPIO 36-40): Windows
+		 * muxes it at run time through PEP (RIVA, TLMMGPIO 0x24-0x28,
+		 * function 1) and the UEFI leaves it unconfigured.
+		 */
+		msm_gpiomux_install(wcnss_5wire_interface,
+				ARRAY_SIZE(wcnss_5wire_interface));
 		pr_info("%s: keeping firmware pin configuration\n", __func__);
 		return;
 	}
