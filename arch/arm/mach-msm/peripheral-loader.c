@@ -38,6 +38,7 @@
 
 #include <mach/msm_iomap.h>
 #include <mach/ramdump.h>
+#include <mach/tz-restricted.h>
 
 #include "peripheral-loader.h"
 
@@ -263,6 +264,15 @@ static irqreturn_t proxy_unvote_intr_handler(int irq, void *dev_id)
 
 static bool segment_is_relocatable(const struct elf32_phdr *p)
 {
+	/*
+	 * With the Windows Phone TrustZone (Lumia 1520) the secure PIL only
+	 * accepts each image in its own firmware carveout, which is where the
+	 * ELF places it (all inside the memory hole of the board): relocating
+	 * the ADSP into the peripheral_mem ION heap made auth_and_reset fail.
+	 */
+	if (msm_tz_restricted())
+		return false;
+
 	return !!(p->p_flags & BIT(27));
 }
 
