@@ -203,13 +203,16 @@
 };
 
 /*
- * Charger present for USB/VBUS detection, charging disabled until the
- * battery (BV-4BW, 3400 mAh) parameters are set.
+ * Charging for the BV-4BW (3400 mAh, Li-ion, 4.35 V maximum): the PM8941
+ * defaults stop at 4.20 V (vddsafe 4.23 V), reduce the current below 10 C
+ * and above 45 C (battery thermistor through the BMS) and stop after
+ * 150 minutes. Fast charge limited to 1 A for margin.
  */
 &pm8941_chg {
 	status = "ok";
-	qcom,charging-disabled;
 	qcom,battery-data = <&bandit_batterydata>;
+	qcom,ibatmax-ma = <1000>;
+	qcom,ibatsafe-ma = <1000>;
 
 	qcom,chgr@1000 {
 		status = "ok";
