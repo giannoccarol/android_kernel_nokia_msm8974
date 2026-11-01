@@ -35,6 +35,7 @@
 #include <linux/gpio.h>
 #include <linux/of_gpio.h>
 #include <linux/qpnp/pin.h>
+#include <linux/wakelock.h>
 
 /* Interrupt offsets */
 #define INT_RT_STS(base)			(base + 0x10)
@@ -378,6 +379,9 @@ struct qpnp_chg_chip {
 	struct delayed_work		usbin_health_check;
 	struct work_struct		soc_check_work;
 	struct delayed_work		aicl_check_work;
+	struct delayed_work		chg_wdog_work;
+	struct wake_lock		chg_wdog_wake_lock;
+	bool				chg_wdog_awake;
 	struct work_struct		insertion_ocv_work;
 	struct work_struct		ocp_clear_work;
 	struct qpnp_chg_regulator	flash_wa_vreg;
@@ -5215,6 +5219,55 @@ qpnp_charger_read_dt_props(struct qpnp_chg_chip *chip)
 	return rc;
 }
 
+/*
+ * Charger watchdog. On the Lumia 1520 the UEFI leaves the PM8941 charger
+ * watchdog armed (CHG_WDOG_EN set, about 32 s) and the enable register
+ * is not writable from Linux, so fast charge stopped about half a minute
+ * after every plug-in. Pet it every 10 s, and keep the system out of
+ * suspend while a charger is connected so that it keeps being petted.
+ */
+#define CHG_WDOG_PET_MS		10000
+#define CHG_WDOG_EN_BIT		BIT(7)
+#define CHG_WDOG_PET_BIT	BIT(7)
+
+static void
+qpnp_chg_wdog_work(struct work_struct *work)
+{
+	struct delayed_work *dwork = to_delayed_work(work);
+	struct qpnp_chg_chip *chip = container_of(dwork,
+				struct qpnp_chg_chip, chg_wdog_work);
+	bool plugged;
+	u8 en = 0;
+	int rc;
+
+	rc = qpnp_chg_read(chip, &en, chip->chgr_base + CHGR_CHG_WDOG_EN, 1);
+	if (rc || !(en & CHG_WDOG_EN_BIT)) {
+		if (chip->chg_wdog_awake) {
+			wake_unlock(&chip->chg_wdog_wake_lock);
+			chip->chg_wdog_awake = false;
+		}
+		if (!rc)
+			pr_info("charger watchdog disabled, stop petting\n");
+		return;
+	}
+
+	qpnp_chg_masked_write(chip, chip->chgr_base + CHGR_CHG_WDOG_PET,
+			0xFF, CHG_WDOG_PET_BIT, 1);
+
+	plugged = qpnp_chg_is_usb_chg_plugged_in(chip) ||
+			qpnp_chg_is_dc_chg_plugged_in(chip);
+	if (plugged && !chip->chg_wdog_awake) {
+		wake_lock(&chip->chg_wdog_wake_lock);
+		chip->chg_wdog_awake = true;
+	} else if (!plugged && chip->chg_wdog_awake) {
+		wake_unlock(&chip->chg_wdog_wake_lock);
+		chip->chg_wdog_awake = false;
+	}
+
+	schedule_delayed_work(&chip->chg_wdog_work,
+			msecs_to_jiffies(CHG_WDOG_PET_MS));
+}
+
 static int __devinit
 qpnp_charger_probe(struct spmi_device *spmi)
 {
@@ -5486,6 +5539,9 @@ qpnp_charger_probe(struct spmi_device *spmi)
 			qpnp_usbin_health_check_work);
 	INIT_WORK(&chip->soc_check_work, qpnp_chg_soc_check_work);
 	INIT_DELAYED_WORK(&chip->aicl_check_work, qpnp_aicl_check_work);
+	INIT_DELAYED_WORK(&chip->chg_wdog_work, qpnp_chg_wdog_work);
+	wake_lock_init(&chip->chg_wdog_wake_lock, WAKE_LOCK_SUSPEND,
+			"qpnp_chg_wdog");
 
 	if (chip->dc_chgpth_base) {
 		chip->dc_psy.name = "qpnp-dc";
@@ -5579,6 +5635,7 @@ qpnp_charger_probe(struct spmi_device *spmi)
 
 	schedule_delayed_work(&chip->aicl_check_work,
 		msecs_to_jiffies(EOC_CHECK_PERIOD_MS));
+	schedule_delayed_work(&chip->chg_wdog_work, 0);
 	pr_info("success chg_dis = %d, bpd = %d, usb = %d, dc = %d b_health = %d batt_present = %d\n",
 			chip->charging_disabled,
 			chip->bpd_detection,
