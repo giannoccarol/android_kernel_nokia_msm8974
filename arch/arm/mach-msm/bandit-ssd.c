@@ -55,6 +55,14 @@ static unsigned int frag_size = SZ_256K;
 module_param(frag_size, uint, 0644);
 MODULE_PARM_DESC(frag_size, "fragment size for 0x1c08 (multiple of 16)");
 
+/*
+ * seg_num counts from the first segment after the ELF header and hash
+ * segments: program header 19 is seg_num 17 (found with the IV probe, the
+ * plain text of segment 19 starts with a zero block).
+ */
+static unsigned int seg_num_base = 2;
+module_param(seg_num_base, uint, 0644);
+
 static struct platform_device *ssd_pdev;
 static DEFINE_MUTEX(ssd_lock);
 static u8 *out_buf;
@@ -244,6 +252,111 @@ struct ssd_frag_rsp {
 	u32 status;
 };
 
+/*
+ * IV probe: the TZ derives the CBC IV of each segment from seg_num. Decrypt
+ * the first 4 KB of one segment with seg_num = probe_from..probe_to, using
+ * one metadata context, and log the first block of each result. Segment 19
+ * starts with zeros in plain text, so the right seg_num gives a zero block.
+ */
+static unsigned int probe_seg = 19;
+module_param(probe_seg, uint, 0644);
+static unsigned int probe_from;
+module_param(probe_from, uint, 0644);
+static unsigned int probe_to = 40;
+module_param(probe_to, uint, 0644);
+static unsigned int probe_last_seg = 1;
+module_param(probe_last_seg, uint, 0644);
+
+static void bin2hex_str(char *dst, const u8 *src)
+{
+	int i;
+
+	for (i = 0; i < 16; i++)
+		sprintf(dst + 2 * i, "%02x", src[i]);
+}
+
+static int ssd_probe_iv(void)
+{
+	const struct firmware *mdt = NULL, *seg = NULL;
+	struct tz_buf md = { 0 }, frag = { 0 };
+	struct ssd_parse_md_req preq;
+	struct ssd_parse_md_rsp prsp;
+	const u8 *xml;
+	size_t xml_off, len;
+	char name[16];
+	unsigned int n;
+	int ret, scm_ret;
+
+	ret = request_firmware(&mdt, "modem.mdt", &ssd_pdev->dev);
+	if (ret)
+		return ret;
+	snprintf(name, sizeof(name), "modem.b%02u", probe_seg);
+	ret = request_firmware(&seg, name, &ssd_pdev->dev);
+	if (ret)
+		goto out;
+
+	xml = strnstr(mdt->data, "<?xml", mdt->size);
+	if (!xml) {
+		ret = -ENOENT;
+		goto out;
+	}
+	xml_off = xml - mdt->data;
+	len = min_t(size_t, seg->size & ~15, SZ_4K);
+
+	ret = tz_buf_alloc(&md, mdt->size - xml_off);
+	if (!ret)
+		ret = tz_buf_alloc(&frag, SZ_4K);
+	if (ret)
+		goto out;
+
+	memcpy(md.virt, xml, mdt->size - xml_off);
+	tz_buf_sync(&md, mdt->size - xml_off);
+	preq.md_len = mdt->size - xml_off;
+	preq.md_pa = md.phys;
+	memset(&prsp, 0, sizeof(prsp));
+	scm_ret = scm_call(SCM_SVC_SSD, SSD_PARSE_MD, &preq, sizeof(preq),
+			   &prsp, sizeof(prsp));
+	index_add("probe: parse_md scm %d status %u ctx %u\n", scm_ret,
+		  prsp.status, prsp.md_ctx_id);
+	if (scm_ret || prsp.status) {
+		ret = -EIO;
+		goto out;
+	}
+
+	for (n = probe_from; n <= probe_to; n++) {
+		struct ssd_seg_frag_req freq;
+		struct ssd_frag_rsp frsp = { 0 };
+		u8 *b = frag.virt;
+
+		memcpy(frag.virt, seg->data, len);
+		tz_buf_sync(&frag, len);
+		freq.md_ctx_id = prsp.md_ctx_id;
+		freq.seg_num = n;
+		freq.last_seg = probe_last_seg;
+		freq.last_frag = 1;
+		freq.frag_len = len;
+		freq.frag_pa = frag.phys;
+		scm_ret = scm_call(SCM_SVC_SSD, SSD_DECRYPT_ELF_SEG_FRAG, &freq,
+				   sizeof(freq), &frsp, sizeof(frsp));
+		tz_buf_sync(&frag, len);
+		{
+			char h1[33], h2[33];
+
+			bin2hex_str(h1, b);
+			bin2hex_str(h2, b + 16);
+			index_add("probe seg %u seg_num %2u: scm %d status %u first %s second %s\n",
+				  probe_seg, n, scm_ret, frsp.status, h1, h2);
+		}
+	}
+	ret = 0;
+out:
+	tz_buf_free(&frag);
+	tz_buf_free(&md);
+	release_firmware(seg);
+	release_firmware(mdt);
+	return ret;
+}
+
 static int ssd_decrypt_modem(void)
 {
 	const struct firmware *mdt = NULL, *seg;
@@ -351,7 +464,7 @@ static int ssd_decrypt_modem(void)
 			memcpy(frag.virt, seg->data + off, len);
 			tz_buf_sync(&frag, len);
 			freq.md_ctx_id = ctx;
-			freq.seg_num = i;
+			freq.seg_num = i - seg_num_base;
 			freq.last_seg = (i == last_seg);
 			freq.last_frag = (off + len == seg->size);
 			freq.frag_len = len;
@@ -473,6 +586,7 @@ static int __init bandit_ssd_init(void)
 	debugfs_create_file("avail", 0400, dir, NULL, &avail_fops);
 	debugfs_create_file("mba", 0200, dir, ssd_decrypt_mba, &run_fops);
 	debugfs_create_file("modem", 0200, dir, ssd_decrypt_modem, &run_fops);
+	debugfs_create_file("probe", 0200, dir, ssd_probe_iv, &run_fops);
 	debugfs_create_file("index", 0400, dir, NULL, &index_fops);
 	debugfs_create_file("out", 0400, dir, NULL, &out_fops);
 	pr_info("bandit_ssd: ready\n");
