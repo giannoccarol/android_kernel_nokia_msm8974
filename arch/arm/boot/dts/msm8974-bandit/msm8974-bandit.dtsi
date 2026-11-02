@@ -353,8 +353,8 @@
 
 /*
  * Charging for the BV-4BW (3400 mAh, Li-ion, 4.35 V maximum): charge to
- * 4.35 V (vddsafe 4.38 V, minimum input 4.47 V as on the 4.35 V reference
- * boards), 4.10 V below 10 C and above 45 C (battery thermistor through
+ * 4.35 V (minimum input 4.47 V as on the 4.35 V reference boards; the
+ * VDD_SAFE ceiling is write-once and the UEFI leaves it at 4.40 V), 4.10 V below 10 C and above 45 C (battery thermistor through
  * the BMS). Fast charge limited to 1 A for margin, so the safety timer is
  * raised from 150 to 330 minutes, enough for the full 3400 mAh.
  */
@@ -362,7 +362,6 @@
 	status = "ok";
 	qcom,battery-data = <&bandit_batterydata>;
 	qcom,vddmax-mv = <4350>;
-	qcom,vddsafe-mv = <4380>;
 	qcom,vinmin-mv = <4470>;
 	qcom,ibatmax-ma = <1000>;
 	qcom,ibatsafe-ma = <1000>;
