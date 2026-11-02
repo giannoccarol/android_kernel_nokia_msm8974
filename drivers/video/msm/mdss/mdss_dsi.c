@@ -43,6 +43,39 @@ EXPORT_SYMBOL(of_get_child_by_name);
 static int mdss_dsi_pinctrl_set_state(struct mdss_dsi_ctrl_pdata *ctrl_pdata,
 					bool active);
 
+/*
+ * Debug aid for panels put to sleep with DCS commands (Lumia 1520): when
+ * set, read the DCS power mode (0x0A) after the off and on commands and log
+ * it. Expected: 0x9c when on (booster, sleep out, display on), bits 4 and 2
+ * clear after sleep in. Off by default: a read needs a bus turnaround.
+ */
+static int panel_pwr_check;
+module_param(panel_pwr_check, int, 0644);
+
+static void mdss_dsi_log_power_mode(struct mdss_dsi_ctrl_pdata *ctrl,
+				    const char *when)
+{
+	static char reg[2] = {0x0a, 0x00};
+	static struct dsi_cmd_desc cmd = {
+		{DTYPE_DCS_READ, 1, 0, 1, 5, sizeof(reg)}, reg};
+	static char buf[16];
+	struct dcs_cmd_req req;
+	int ret;
+
+	if (!panel_pwr_check)
+		return;
+	memset(buf, 0xee, sizeof(buf));
+	memset(&req, 0, sizeof(req));
+	req.cmds = &cmd;
+	req.cmds_cnt = 1;
+	req.flags = CMD_REQ_RX | CMD_REQ_COMMIT;
+	req.rlen = 1;
+	req.rbuf = buf;
+	ret = mdss_dsi_cmdlist_put(ctrl, &req);
+	pr_info("%s: panel power mode %s: 0x%02x (ret %d)\n", __func__, when,
+		(u8)buf[0], ret);
+}
+
 static int mdss_dsi_regulator_init(struct platform_device *pdev)
 {
 	int rc = 0;
@@ -769,6 +802,7 @@ static int mdss_dsi_unblank(struct mdss_panel_data *pdata)
 			}
 		}
 		ctrl_pdata->ctrl_state |= CTRL_STATE_PANEL_INIT;
+		mdss_dsi_log_power_mode(ctrl_pdata, "after on");
 	}
 
 	if ((pdata->panel_info.type == MIPI_CMD_PANEL) &&
@@ -847,6 +881,7 @@ static int mdss_dsi_blank(struct mdss_panel_data *pdata, int power_state)
 			}
 		}
 		ctrl_pdata->ctrl_state &= ~CTRL_STATE_PANEL_INIT;
+		mdss_dsi_log_power_mode(ctrl_pdata, "after off");
 	}
 error:
 	mdss_dsi_clk_ctrl(ctrl_pdata, DSI_ALL_CLKS, 0);
