@@ -568,8 +568,9 @@
  * reboots when Wi-Fi is turned on.
  */
 &soc {
+	/* Test branch: on, started only through pil_q6v5_mss.boot_enabled */
 	qcom,mss@fc880000 {
-		status = "disabled";
+		status = "ok";
 	};
 	qcom,pronto@fb21b000 {
 		status = "ok";
