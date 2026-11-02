@@ -743,6 +743,8 @@
 		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
 		qcom,mdss-dsi-bl-min-level = <1>;
 		qcom,mdss-dsi-bl-max-level = <4095>;	/* WLED 12-bit */
+		/* slightly more saturated colours (LiveDisplay PCC matrix) */
+		nokia,mdss-livedisplay-saturation = <115>;
 	};
 };
 

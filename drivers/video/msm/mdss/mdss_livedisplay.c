@@ -12,6 +12,7 @@
  */
 
 #include <linux/err.h>
+#include <linux/math64.h>
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/slab.h>
@@ -135,28 +136,59 @@ exit_free:
  * reference chart:
  * http://www.vendian.org/mncharity/dir3/blackbody/UnstableURLs/bbr_color.html
  */
+/*
+ * Saturation: out = gain * (k * in + (1 - k) * luma(in)), with k the
+ * saturation factor and Rec. 709 luma weights (Q15). Greys are unchanged,
+ * so the white point set through r/g/b is kept. Off-diagonal terms are
+ * negative for k > 1 (two's complement coefficients).
+ */
+static const s64 livedisplay_luma[3] = { 6966, 23436, 2366 };
+
+static uint32_t mdss_livedisplay_pcc_coeff(uint32_t gain, uint32_t sat,
+		int out, int in)
+{
+	s64 m = (s64)(100 - (s64)sat) * livedisplay_luma[in];
+
+	if (out == in)
+		m += (s64)sat * 32768;
+	/* m is Q15 * 100 */
+	m = div_s64(m * gain, 100 * 32768);
+
+	return (uint32_t)(s32)m;
+}
+
 static int mdss_livedisplay_update_pcc(struct mdss_livedisplay_ctx *mlc)
 {
 	static struct mdp_pcc_cfg_data pcc_cfg;
+	uint32_t sat;
 
 	if (mlc == NULL)
 		return -ENODEV;
 
 	WARN_ON(!mutex_is_locked(&mlc->lock));
 
-	pr_info("%s: r=%d g=%d b=%d\n", __func__, mlc->r, mlc->g, mlc->b);
+	sat = mlc->saturation ? mlc->saturation : 100;
+	pr_info("%s: r=%d g=%d b=%d saturation=%u\n", __func__,
+			mlc->r, mlc->g, mlc->b, sat);
 
 	memset(&pcc_cfg, 0, sizeof(struct mdp_pcc_cfg_data));
 
 	pcc_cfg.block = mlc->mfd->index + MDP_LOGICAL_BLOCK_DISP_0;
-	if (mlc->r == 32768 && mlc->g == 32768 && mlc->b == 32768)
+	if (mlc->r == 32768 && mlc->g == 32768 && mlc->b == 32768 &&
+			sat == 100)
 		pcc_cfg.ops = MDP_PP_OPS_DISABLE;
 	else
 		pcc_cfg.ops = MDP_PP_OPS_ENABLE;
 	pcc_cfg.ops |= MDP_PP_OPS_WRITE;
-	pcc_cfg.r.r = mlc->r;
-	pcc_cfg.g.g = mlc->g;
-	pcc_cfg.b.b = mlc->b;
+	pcc_cfg.r.r = mdss_livedisplay_pcc_coeff(mlc->r, sat, 0, 0);
+	pcc_cfg.r.g = mdss_livedisplay_pcc_coeff(mlc->r, sat, 0, 1);
+	pcc_cfg.r.b = mdss_livedisplay_pcc_coeff(mlc->r, sat, 0, 2);
+	pcc_cfg.g.r = mdss_livedisplay_pcc_coeff(mlc->g, sat, 1, 0);
+	pcc_cfg.g.g = mdss_livedisplay_pcc_coeff(mlc->g, sat, 1, 1);
+	pcc_cfg.g.b = mdss_livedisplay_pcc_coeff(mlc->g, sat, 1, 2);
+	pcc_cfg.b.r = mdss_livedisplay_pcc_coeff(mlc->b, sat, 2, 0);
+	pcc_cfg.b.g = mdss_livedisplay_pcc_coeff(mlc->b, sat, 2, 1);
+	pcc_cfg.b.b = mdss_livedisplay_pcc_coeff(mlc->b, sat, 2, 2);
 
 	return mdss_mdp_user_pcc_config(&pcc_cfg);
 }
@@ -526,6 +558,48 @@ static DEVICE_ATTR(preset, S_IRUGO | S_IWUSR | S_IWGRP, mdss_livedisplay_get_pre
 static DEVICE_ATTR(num_presets, S_IRUGO, mdss_livedisplay_get_num_presets, NULL);
 static DEVICE_ATTR(rgb, S_IRUGO | S_IWUSR | S_IWGRP, mdss_livedisplay_get_rgb, mdss_livedisplay_set_rgb);
 
+static ssize_t mdss_livedisplay_get_saturation(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct fb_info *fbi = dev_get_drvdata(dev);
+	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)fbi->par;
+	struct mdss_livedisplay_ctx *mlc;
+
+	if (mfd == NULL)
+		return -ENODEV;
+
+	mlc = get_ctx(mfd);
+
+	return sprintf(buf, "%u\n", mlc->saturation);
+}
+
+static ssize_t mdss_livedisplay_set_saturation(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct fb_info *fbi = dev_get_drvdata(dev);
+	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)fbi->par;
+	struct mdss_livedisplay_ctx *mlc;
+	unsigned int sat;
+
+	if (mfd == NULL)
+		return -ENODEV;
+
+	if (sscanf(buf, "%u", &sat) != 1 || sat < 50 || sat > 200)
+		return -EINVAL;
+
+	mlc = get_ctx(mfd);
+
+	mutex_lock(&mlc->lock);
+	mlc->saturation = sat;
+	mutex_unlock(&mlc->lock);
+
+	mdss_livedisplay_update(mlc, MODE_RGB);
+
+	return count;
+}
+
+static DEVICE_ATTR(saturation, S_IRUGO | S_IWUSR | S_IWGRP, mdss_livedisplay_get_saturation, mdss_livedisplay_set_saturation);
+
 int mdss_livedisplay_parse_dt(struct device_node *np, struct mdss_panel_info *pinfo)
 {
 	int rc = 0, i = 0;
@@ -593,6 +667,10 @@ int mdss_livedisplay_parse_dt(struct device_node *np, struct mdss_panel_info *pi
 
 	mlc->caps |= MODE_RGB;
 	mlc->r = mlc->g = mlc->b = 32768;
+	mlc->saturation = 100;
+	if (!of_property_read_u32(np, "nokia,mdss-livedisplay-saturation", &tmp)
+			&& tmp >= 50 && tmp <= 200)
+		mlc->saturation = tmp;
 	mlc->updated = 0;
 
 	mutex_init(&mlc->lock);
@@ -616,6 +694,10 @@ int mdss_livedisplay_create_sysfs(struct msm_fb_data_type *mfd)
 		return 0;
 
 	rc = sysfs_create_file(&mfd->fbi->dev->kobj, &dev_attr_rgb.attr);
+	if (rc)
+		goto sysfs_err;
+
+	rc = sysfs_create_file(&mfd->fbi->dev->kobj, &dev_attr_saturation.attr);
 	if (rc)
 		goto sysfs_err;
 

@@ -56,6 +56,8 @@ struct mdss_livedisplay_ctx {
 	unsigned int caps;
 
 	uint32_t r, g, b;
+	/* saturation in percent (100 = unchanged), applied with the PCC */
+	uint32_t saturation;
 
 	struct msm_fb_data_type *mfd;
 
