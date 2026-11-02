@@ -558,9 +558,9 @@
 };
 
 /*
- * Modem off until its bring-up is solved: the PBL rejects the Windows MBA
- * ("PBL returned unexpected status"), and with the node on every QMI/SMD
- * client retried subsystem_get("modem") every 1-2 s.
+ * Modem: the stock MBA and modem images are SSD encrypted and the TZ
+ * decrypts them while PIL loads them (pil-ssd.c). The start is limited by
+ * pil_q6v5_mss.max_attempts.
  *
  * WCNSS (Pronto, Wi-Fi/Bluetooth) on, with the 5-wire link to the iris RF
  * chip muxed by the board file. The mainline port saw Pronto never signal
@@ -569,7 +569,7 @@
  */
 &soc {
 	qcom,mss@fc880000 {
-		status = "disabled";
+		status = "ok";
 	};
 	qcom,pronto@fb21b000 {
 		status = "ok";

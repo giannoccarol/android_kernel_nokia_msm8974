@@ -24,6 +24,7 @@
 #include "peripheral-loader.h"
 #include "pil-q6v5.h"
 #include "pil-msa.h"
+#include <mach/tz-restricted.h>
 
 /* Q6 Register Offsets */
 #define QDSP6SS_RST_EVB			0x010
@@ -284,11 +285,21 @@ static void pil_msa_pbl_remove_proxy_votes(struct pil_desc *pil)
 	regulator_set_voltage(drv->vreg_mx, 0, MAX_VDD_MX_UV);
 }
 
+/* Lumia 1520: the stock MBA is SSD encrypted; the TZ decrypts it in place. */
+static int pil_msa_pbl_decrypt_seg(struct pil_desc *pil, int num,
+				   phys_addr_t paddr, size_t size)
+{
+	if (!msm_tz_restricted())
+		return 0;
+	return pil_ssd_decrypt_image(pil->dev, paddr, size);
+}
+
 struct pil_reset_ops pil_msa_pbl_ops = {
 	.proxy_vote = pil_msa_pbl_make_proxy_votes,
 	.proxy_unvote = pil_msa_pbl_remove_proxy_votes,
 	.auth_and_reset = pil_msa_pbl_reset,
 	.shutdown = pil_msa_pbl_shutdown,
+	.decrypt_seg = pil_msa_pbl_decrypt_seg,
 };
 
 static int pil_msa_mba_init_image(struct pil_desc *pil,
@@ -300,6 +311,13 @@ static int pil_msa_mba_init_image(struct pil_desc *pil,
 	s32 status;
 	int ret;
 	DEFINE_DMA_ATTRS(attrs);
+
+	/* Lumia 1520: open the SSD context of the encrypted segments. */
+	if (msm_tz_restricted()) {
+		ret = pil_ssd_parse_md(pil->dev, metadata, size, &drv->ssd);
+		if (ret)
+			return ret;
+	}
 
 	dma_set_attr(DMA_ATTR_STRONGLY_ORDERED, &attrs);
 	/* Make metadata physically contiguous and 4K aligned. */
@@ -380,8 +398,17 @@ static int pil_msa_mba_auth(struct pil_desc *pil)
 	return ret;
 }
 
+static int pil_msa_mba_decrypt_seg(struct pil_desc *pil, int num,
+				   phys_addr_t paddr, size_t size)
+{
+	struct mba_data *drv = container_of(pil, struct mba_data, desc);
+
+	return pil_ssd_decrypt_seg(pil->dev, &drv->ssd, num, paddr, size);
+}
+
 struct pil_reset_ops pil_msa_mba_ops = {
 	.init_image = pil_msa_mba_init_image,
 	.verify_blob = pil_msa_mba_verify_blob,
+	.decrypt_seg = pil_msa_mba_decrypt_seg,
 	.auth_and_reset = pil_msa_mba_auth,
 };

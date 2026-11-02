@@ -46,6 +46,8 @@ struct pil_desc {
  * @mem_setup: prepare the image memory region
  * @verify_blob: authenticate a program segment, called once for each loadable
  *		 program segment (optional)
+ * @decrypt_seg: turn a loaded program segment into plain text in place,
+ *		 before it is verified (optional)
  * @proxy_vote: make proxy votes before auth_and_reset (optional)
  * @auth_and_reset: boot the processor
  * @proxy_unvote: remove any proxy votes (optional)
@@ -56,6 +58,8 @@ struct pil_reset_ops {
 			  size_t size);
 	int (*mem_setup)(struct pil_desc *pil, phys_addr_t addr, size_t size);
 	int (*verify_blob)(struct pil_desc *pil, phys_addr_t phy_addr,
+			   size_t size);
+	int (*decrypt_seg)(struct pil_desc *pil, int num, phys_addr_t paddr,
 			   size_t size);
 	int (*proxy_vote)(struct pil_desc *pil);
 	int (*auth_and_reset)(struct pil_desc *pil);

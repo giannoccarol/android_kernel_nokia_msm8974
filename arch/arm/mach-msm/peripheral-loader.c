@@ -551,6 +551,16 @@ static int pil_load_seg(struct pil_desc *desc, struct pil_seg *seg)
 			return -EPERM;
 		}
 		ret = 0;
+
+		if (desc->ops->decrypt_seg) {
+			ret = desc->ops->decrypt_seg(desc, num, seg->paddr,
+						     seg->filesz);
+			if (ret) {
+				pil_err(desc, "Failed to decrypt blob %s\n",
+					fw_name);
+				return ret;
+			}
+		}
 	}
 
 	/* Zero out trailing memory */

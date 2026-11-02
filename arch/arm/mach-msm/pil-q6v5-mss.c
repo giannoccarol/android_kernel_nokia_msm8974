@@ -32,6 +32,7 @@
 #include <mach/msm_smsm.h>
 #include <mach/ramdump.h>
 #include <mach/msm_smem.h>
+#include <mach/tz-restricted.h>
 
 #include "peripheral-loader.h"
 #include "pil-q6v5.h"
@@ -130,6 +131,33 @@ static int modem_shutdown(const struct subsys_desc *subsys)
 	return 0;
 }
 
+/*
+ * Lumia 1520: the modem starts at most max_attempts times per boot, as the
+ * stock firmware allows (MaxRestartCount 3). A failed PBL does not answer
+ * again until the MSS is power cycled, and every QMI/SMD client retries
+ * subsystem_get("modem") every 1-2 s, so further attempts are refused
+ * without touching the hardware. boot_enabled=0 keeps the modem off.
+ */
+static bool boot_enabled = true;
+module_param(boot_enabled, bool, 0644);
+static unsigned int max_attempts = 3;
+module_param(max_attempts, uint, 0644);
+static unsigned int attempts;
+module_param(attempts, uint, 0444);
+
+static int bandit_modem_gate(void)
+{
+	if (!msm_tz_restricted())
+		return 0;
+	if (!boot_enabled)
+		return -EPERM;
+	if (attempts >= max_attempts)
+		return -ENODEV;
+	attempts++;
+	pr_info("pil-q6v5-mss: bandit: modem start attempt %u\n", attempts);
+	return 0;
+}
+
 static int modem_powerup(const struct subsys_desc *subsys)
 {
 	struct modem_data *drv = subsys_to_drv(subsys);
@@ -137,6 +165,9 @@ static int modem_powerup(const struct subsys_desc *subsys)
 
 	if (subsys->is_not_loadable)
 		return 0;
+	ret = bandit_modem_gate();
+	if (ret)
+		return ret;
 	/*
 	 * At this time, the modem is shutdown. Therefore this function cannot
 	 * run concurrently with either the watchdog bite error handler or the
@@ -215,6 +246,9 @@ static int mss_start(const struct subsys_desc *desc)
 
 	if (desc->is_not_loadable)
 		return 0;
+	ret = bandit_modem_gate();
+	if (ret)
+		return ret;
 
 	INIT_COMPLETION(drv->stop_ack);
 	ret = pil_boot(&drv->q6->desc);
