@@ -813,6 +813,52 @@ int __init msm_clock_init(struct clock_init_data *data)
 	return 0;
 }
 
+/*
+ * Firmware boot (Lumia 1520): the display clocks have an owner, the MDSS
+ * driver, which takes its own votes while the panel is on (continuous
+ * splash included). Drop only the firmware's vote on them, so that with the
+ * screen off the MDP, DSI link clocks and DSI PLL really stop. The DSI PLL
+ * is relocked at the cached rate by vco_prepare() at the next unblank.
+ * Shared parents (GPLL0, MMPLL0, axi_clk_src, CXO) are not in the list.
+ */
+static bool release_display_clocks = true;
+module_param(release_display_clocks, bool, 0444);
+
+static const char * const display_handoff_clks[] __initconst = {
+	"mdss_mdp_clk", "mdss_mdp_lut_clk", "mdp_clk_src",
+	"mdss_axi_clk",
+	"mdss_byte0_clk", "byte0_clk_src", "byte_clk_src", "byte_mux",
+	"mdss_pclk0_clk", "pclk0_clk_src", "pixel_clk_src",
+	"analog_postdiv_clk", "indirect_path_div2_clk", "dsi_vco_clk",
+	"mdss_esc0_clk", "esc0_clk_src",
+	"mdss_vsync_clk", "vsync_clk_src",
+};
+
+static void __init release_display_handoff(void)
+{
+	struct handoff_clk *h, *h_temp;
+	int i, n = 0;
+
+	if (!release_display_clocks)
+		return;
+
+	list_for_each_entry_safe(h, h_temp, &handoff_list, list) {
+		for (i = 0; i < ARRAY_SIZE(display_handoff_clks); i++)
+			if (h->clk->dbg_name &&
+			    !strcmp(h->clk->dbg_name, display_handoff_clks[i]))
+				break;
+		if (i == ARRAY_SIZE(display_handoff_clks))
+			continue;
+		pr_info("%s: %s handed to its driver\n", __func__,
+			h->clk->dbg_name);
+		clk_disable_unprepare(h->clk);
+		list_del(&h->list);
+		kfree(h);
+		n++;
+	}
+	pr_info("%s: released %d display clocks\n", __func__, n);
+}
+
 static int __init clock_late_init(void)
 {
 	struct handoff_clk *h, *h_temp;
@@ -839,6 +885,7 @@ static int __init clock_late_init(void)
 	if (msm_tz_restricted()) {
 		pr_info("%s: keeping handed-off clocks on (firmware boot)\n",
 			__func__);
+		release_display_handoff();
 		mutex_unlock(&msm_clock_init_lock);
 		return ret;
 	}
