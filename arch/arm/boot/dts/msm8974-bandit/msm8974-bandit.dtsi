@@ -513,8 +513,62 @@
 	qcom,leds@e100 {
 		status = "disabled";
 	};
+	/*
+	 * Capacitive key backlight: the PM8941 keypad backlight (KPDBL) rows,
+	 * PWM channels 8-11 as on the MTP. Each row lights part of the keys;
+	 * the lights HAL drives all four together.
+	 */
 	qcom,leds@e200 {
-		status = "disabled";
+		status = "okay";
+
+		qcom,kpdbl1 {
+			label = "kpdbl";
+			linux,name = "kpdbl-pwm-1";
+			qcom,mode = "pwm";
+			qcom,pwm-channel = <8>;
+			qcom,pwm-us = <1000>;
+			qcom,id = <7>;
+			qcom,max-current = <20>;
+			qcom,row-id = <0>;
+			qcom,row-src-en;
+			qcom,always-on;
+		};
+
+		qcom,kpdbl2 {
+			label = "kpdbl";
+			linux,name = "kpdbl-pwm-2";
+			qcom,mode = "pwm";
+			qcom,pwm-channel = <9>;
+			qcom,pwm-us = <1000>;
+			qcom,id = <7>;
+			qcom,max-current = <20>;
+			qcom,row-id = <1>;
+			qcom,row-src-en;
+		};
+
+		qcom,kpdbl3 {
+			label = "kpdbl";
+			linux,name = "kpdbl-pwm-3";
+			qcom,mode = "pwm";
+			qcom,pwm-channel = <10>;
+			qcom,pwm-us = <1000>;
+			qcom,id = <7>;
+			qcom,max-current = <20>;
+			qcom,row-id = <2>;
+			qcom,row-src-en;
+		};
+
+		qcom,kpdbl4 {
+			label = "kpdbl";
+			linux,name = "kpdbl-pwm-4";
+			qcom,mode = "pwm";
+			qcom,pwm-channel = <11>;
+			qcom,pwm-us = <1000>;
+			qcom,id = <7>;
+			qcom,max-current = <20>;
+			qcom,row-id = <3>;
+			qcom,row-src-en;
+		};
 	};
 };
 
