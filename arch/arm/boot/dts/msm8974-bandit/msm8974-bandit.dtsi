@@ -454,6 +454,8 @@
 			qcom,max-current = <12>;
 			qcom,num-strings = <2>;
 			qcom,cs-out-en;
+			/* the UEFI leaves the panel CABC PWM scaling the strings */
+			qcom,cabc-disable;
 			qcom,ovp-val = <3>;
 			qcom,boost-curr-lim = <2>;
 			qcom,switch-freq = <11>;

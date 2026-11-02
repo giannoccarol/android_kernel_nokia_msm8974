@@ -37,6 +37,8 @@
 #define WLED_IDAC_DLY_REG(base, n)	(WLED_MOD_EN_REG(base, n) + 0x01)
 #define WLED_FULL_SCALE_REG(base, n)	(WLED_IDAC_DLY_REG(base, n) + 0x01)
 #define WLED_MOD_SRC_SEL_REG(base, n)	(WLED_FULL_SCALE_REG(base, n) + 0x01)
+#define WLED_CABC_REG(base, n)		(WLED_MOD_EN_REG(base, n) + 0x06)
+#define WLED_CABC_EN_MASK		0x80
 
 /* wled control registers */
 #define WLED_BRIGHTNESS_CNTL_LSB(base, n)	(base + 0x40 + 2*n)
@@ -362,6 +364,7 @@ struct wled_config_data {
 	u8	pmic_version;
 	bool	dig_mod_gen_en;
 	bool	cs_out_en;
+	bool	cabc_disable;
 };
 
 /**
@@ -1779,6 +1782,22 @@ static int __devinit qpnp_wled_init(struct qpnp_led_data *led)
 			return rc;
 		}
 
+		/*
+		 * The bootloader may leave CABC on: the sink current is then
+		 * scaled by the panel's CABC PWM, which the kernel does not
+		 * control, and the backlight is dimmer at every level.
+		 */
+		if (led->wled_cfg->cabc_disable) {
+			rc = qpnp_led_masked_write(led,
+				WLED_CABC_REG(led->base, i), WLED_CABC_EN_MASK,
+				0);
+			if (rc) {
+				dev_err(&led->spmi_dev->dev,
+					"WLED cabc reg write failed(%d)\n", rc);
+				return rc;
+			}
+		}
+
 	}
 
 	/* Reset WLED enable register */
@@ -2972,6 +2991,9 @@ static int __devinit qpnp_get_config_wled(struct qpnp_led_data *led,
 
 	led->wled_cfg->cs_out_en =
 		of_property_read_bool(node, "qcom,cs-out-en");
+
+	led->wled_cfg->cabc_disable =
+		of_property_read_bool(node, "qcom,cabc-disable");
 
 	return 0;
 }
