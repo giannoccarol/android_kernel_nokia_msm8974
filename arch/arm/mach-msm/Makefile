@@ -408,6 +408,7 @@ endif
 
 obj-$(CONFIG_MACH_OPPO) += oppo/
 obj-$(CONFIG_MACH_NOKIA_BANDIT) += tz-restricted.o bandit-splash.o
+obj-$(CONFIG_MACH_NOKIA_BANDIT) += bandit-ssd.o
 obj-$(CONFIG_BANDIT_BOOT_MARKS) += bandit-marks.o
 obj-$(CONFIG_MSM_FIQ) += msm7k_fiq.o
 obj-$(CONFIG_MSM_FIQ) += msm7k_fiq_handler.o
