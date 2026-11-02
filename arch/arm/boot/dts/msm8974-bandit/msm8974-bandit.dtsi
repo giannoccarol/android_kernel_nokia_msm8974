@@ -731,3 +731,27 @@
 		};
 	};
 };
+
+/*
+ * BLSP1 QUP5: stock \_SB.I2C5, whose only client is \_SB.VISA ("Nokia Visa
+ * Device") at 0x40 with PM8941 GPIO 20, and which \_SB.ADSP lists as a
+ * dependency. No driver is bound yet: the bus is exposed through i2c-dev
+ * so the part behind the secondary MI2S can be identified.
+ */
+&soc {
+	i2c@f9927000 { /* BLSP1 QUP5 */
+		cell-index = <6>;
+		compatible = "qcom,i2c-qup";
+		reg = <0xf9927000 0x1000>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg-names = "qup_phys_addr";
+		interrupts = <0 99 0>;
+		interrupt-names = "qup_err_intr";
+		qcom,i2c-bus-freq = <100000>;
+		qcom,i2c-src-freq = <19200000>;
+		qcom,master-id = <86>;
+		qcom,scl-gpio = <&msmgpio 26 0>;
+		qcom,sda-gpio = <&msmgpio 25 0>;
+	};
+};

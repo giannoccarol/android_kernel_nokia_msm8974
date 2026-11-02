@@ -460,6 +460,40 @@ static struct gpiomux_setting bandit_sec_mi2s_act_cfg = {
 	.pull = GPIOMUX_PULL_DOWN,
 };
 
+/*
+ * BLSP1 QUP5 I2C (stock \_SB.I2C5): the only client is \_SB.VISA at 0x40,
+ * the bus the ADSP also depends on. The stock PEP muxes TLMM 25 on
+ * function 4 and TLMM 26 on function 5, with pull-ups.
+ */
+static struct gpiomux_setting bandit_i2c5_sda_cfg = {
+	.func = GPIOMUX_FUNC_4,
+	.drv = GPIOMUX_DRV_2MA,
+	.pull = GPIOMUX_PULL_UP,
+};
+
+static struct gpiomux_setting bandit_i2c5_scl_cfg = {
+	.func = GPIOMUX_FUNC_5,
+	.drv = GPIOMUX_DRV_2MA,
+	.pull = GPIOMUX_PULL_UP,
+};
+
+static struct msm_gpiomux_config bandit_i2c5_configs[] __initdata = {
+	{
+		.gpio = 25,		/* BLSP1 QUP5 I2C_DAT */
+		.settings = {
+			[GPIOMUX_ACTIVE] = &bandit_i2c5_sda_cfg,
+			[GPIOMUX_SUSPENDED] = &bandit_i2c5_sda_cfg,
+		},
+	},
+	{
+		.gpio = 26,		/* BLSP1 QUP5 I2C_CLK */
+		.settings = {
+			[GPIOMUX_ACTIVE] = &bandit_i2c5_scl_cfg,
+			[GPIOMUX_SUSPENDED] = &bandit_i2c5_scl_cfg,
+		},
+	},
+};
+
 static struct msm_gpiomux_config bandit_sec_mi2s_configs[] __initdata = {
 	{
 		.gpio = 79,		/* SEC_MI2S_SCK */
@@ -1624,6 +1658,8 @@ void __init msm_8974_init_gpiomux(void)
 				ARRAY_SIZE(bandit_sensor_i2c_configs));
 		msm_gpiomux_install(bandit_sec_mi2s_configs,
 				ARRAY_SIZE(bandit_sec_mi2s_configs));
+		msm_gpiomux_install(bandit_i2c5_configs,
+				ARRAY_SIZE(bandit_i2c5_configs));
 		pr_info("%s: keeping firmware pin configuration\n", __func__);
 		return;
 	}
