@@ -30,6 +30,7 @@
 
 #ifdef CONFIG_FB
 #include <linux/notifier.h>
+#include <linux/completion.h>
 #include <linux/fb.h>
 #elif defined CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
@@ -250,6 +251,21 @@ struct synaptics_rmi4_data {
 	wait_queue_head_t wait;
 	bool stay_awake;
 	bool staying_awake;
+	/*
+	 * Wakeup gesture (double tap to wake) on F12 sensors that have the
+	 * ctrl27 gesture enables: the firmware recognises the gesture and
+	 * reports it in data4 while ctrl20 is in wakeup gesture mode.
+	 */
+	bool wake_gesture_supported;
+	bool wake_gesture_enabled;
+	bool wake_gesture_active;
+	bool sys_suspended;
+	struct completion sys_resumed;
+	unsigned short f12_ctrl20_addr;
+	unsigned short f12_data4_addr;
+	unsigned char f12_intr_reg;
+	unsigned char f12_intr_mask;
+	unsigned char saved_intr_enable[MAX_INTR_REGISTERS];
 	int (*i2c_read)(struct synaptics_rmi4_data *pdata, unsigned short addr,
 			unsigned char *data, unsigned short length);
 	int (*i2c_write)(struct synaptics_rmi4_data *pdata, unsigned short addr,
