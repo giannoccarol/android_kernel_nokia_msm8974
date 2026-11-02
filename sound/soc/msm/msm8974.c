@@ -35,6 +35,9 @@
 #include "qdsp6v2/msm-pcm-routing-v2.h"
 #include "../codecs/wcd9xxx-common.h"
 #include "../codecs/wcd9320.h"
+#ifdef CONFIG_MACH_NOKIA_BANDIT
+#include "../codecs/tas2552-i2s.h"
+#endif
 
 #define DRV_NAME "msm8974-asoc-taiko"
 
@@ -1586,6 +1589,25 @@ static int msm_be_hw_params_fixup_sec_mi2s(struct snd_soc_pcm_runtime *rtd,
 
 	return 0;
 }
+
+#ifdef CONFIG_MACH_NOKIA_BANDIT
+/*
+ * Lumia 1520 loudspeaker: the TAS2552 takes a stereo I2S frame (two 32-bit
+ * slots, 64 bit clocks at 48 kHz) and averages the channels, whatever the
+ * front end sends.
+ */
+static int msm_be_hw_params_fixup_sec_mi2s_rx(struct snd_soc_pcm_runtime *rtd,
+					      struct snd_pcm_hw_params *params)
+{
+	struct snd_interval *channels = hw_param_interval(params,
+					SNDRV_PCM_HW_PARAM_CHANNELS);
+
+	msm_be_hw_params_fixup_sec_mi2s(rtd, params);
+	channels->min = channels->max = 2;
+
+	return 0;
+}
+#endif
 #endif
 
 static int msm_be_fm_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
@@ -2175,13 +2197,40 @@ static int msm8974_mi2s_startup(struct snd_pcm_substream *substream)
 			dev_err(cpu_dai->dev, "set format for CPU dai"
 				" failed\n");
 
+#ifndef CONFIG_MACH_NOKIA_BANDIT
 		ret = snd_soc_dai_set_fmt(codec_dai, SND_SOC_DAIFMT_CBS_CFS);
 		if (ret < 0)
 			dev_err(codec_dai->dev, "set format for codec dai"
 				 " failed\n");
+#endif
 
 		ret  = 0;
 	}
+
+#ifdef CONFIG_MACH_NOKIA_BANDIT
+	/*
+	 * Loudspeaker amplifier: I2S slave on the MSM clocks, PLL fed by the
+	 * 3.072 MHz bit clock (no MCLK pin on this board). Done for every
+	 * playback open, whichever direction took the clock reference.
+	 */
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK &&
+	    !strcmp(codec_dai->name, "tas2552-amplifier")) {
+		ret = snd_soc_dai_set_fmt(codec_dai, SND_SOC_DAIFMT_CBS_CFS |
+					  SND_SOC_DAIFMT_I2S |
+					  SND_SOC_DAIFMT_NB_NF);
+		if (ret < 0)
+			dev_err(codec_dai->dev, "set format for codec dai"
+				" failed\n");
+
+		ret = snd_soc_dai_set_sysclk(codec_dai, TAS2552_PLL_CLKIN_BCLK,
+					     3072000, SND_SOC_CLOCK_IN);
+		if (ret < 0)
+			dev_err(codec_dai->dev, "set PLL clock for codec dai"
+				" failed\n");
+
+		ret = 0;
+	}
+#endif
 	return ret;
 }
 
@@ -3173,11 +3222,18 @@ static struct snd_soc_dai_link msm8974_common_dai_links[] = {
 		.stream_name = "Secondary MI2S Playback",
 		.cpu_dai_name = "msm-dai-q6-mi2s.1",
 		.platform_name = "msm-pcm-routing",
+#ifdef CONFIG_MACH_NOKIA_BANDIT
+		/* TAS2552 on BLSP1 QUP5 (i2c-6), address 0x40 */
+		.codec_name     = "tas2552.6-0040",
+		.codec_dai_name = "tas2552-amplifier",
+		.be_hw_params_fixup = msm_be_hw_params_fixup_sec_mi2s_rx,
+#else
 		.codec_name     = "msm-stub-codec.1",
 		.codec_dai_name = "msm-stub-rx",
+		.be_hw_params_fixup = msm_be_hw_params_fixup_sec_mi2s,
+#endif
 		.no_pcm = 1,
 		.be_id = MSM_BACKEND_DAI_SECONDARY_MI2S_RX,
-		.be_hw_params_fixup = msm_be_hw_params_fixup_sec_mi2s,
 		.ops = &msm8974_mi2s_be_ops,
 	},
 	{
@@ -3211,6 +3267,43 @@ static struct snd_soc_dai_link msm8974_hdmi_dai_link[] = {
 		.ignore_suspend = 1,
 	},
 };
+
+#ifdef CONFIG_MACH_NOKIA_BANDIT
+/*
+ * Without an enabled TAS2552 node the card would wait forever for its
+ * codec: fall back to the stub so the rest of the card still comes up.
+ */
+static void msm8974_bandit_check_spk_amp(struct device *dev,
+					 struct snd_soc_card *card)
+{
+	struct device_node *np;
+	bool present = false;
+	int i;
+
+	for_each_compatible_node(np, NULL, "ti,tas2552") {
+		if (of_device_is_available(np)) {
+			present = true;
+			of_node_put(np);
+			break;
+		}
+	}
+	if (present)
+		return;
+
+	for (i = 0; i < card->num_links; i++) {
+		struct snd_soc_dai_link *link = &card->dai_link[i];
+
+		if (link->name && !strcmp(link->name, LPASS_BE_SEC_MI2S_RX)) {
+			dev_warn(dev, "no TAS2552 in DT: %s on the stub codec\n",
+				 link->name);
+			link->codec_name = "msm-stub-codec.1";
+			link->codec_dai_name = "msm-stub-rx";
+			link->be_hw_params_fixup =
+				msm_be_hw_params_fixup_sec_mi2s;
+		}
+	}
+}
+#endif
 
 static struct snd_soc_dai_link msm8974_dai_links[
 					 ARRAY_SIZE(msm8974_common_dai_links) +
@@ -3444,6 +3537,9 @@ static __devinit int msm8974_asoc_machine_probe(struct platform_device *pdev)
 		card->dai_link	= msm8974_common_dai_links;
 		card->num_links	= ARRAY_SIZE(msm8974_common_dai_links);
 	}
+#ifdef CONFIG_MACH_NOKIA_BANDIT
+	msm8974_bandit_check_spk_amp(&pdev->dev, card);
+#endif
 	mutex_init(&cdc_mclk_mutex);
 	atomic_set(&prim_auxpcm_rsc_ref, 0);
 	atomic_set(&sec_auxpcm_rsc_ref, 0);
