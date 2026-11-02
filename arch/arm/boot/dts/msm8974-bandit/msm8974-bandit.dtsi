@@ -720,6 +720,17 @@
 	};
 };
 
+/*
+ * Headset jack: its insertion switch is normally open. With the default
+ * (normally closed) MBHC polarity an empty jack reads as inserted and is
+ * classified as a line out, and Android routes all audio there.
+ */
+&soc {
+	sound {
+		qcom,headset-jack-type-NO;
+	};
+};
+
 &slim_msm {
 	taiko_codec {
 		cdc-vdd-spkdrv-supply = <&pm8941_boost>;

@@ -3519,6 +3519,16 @@ static __devinit int msm8974_asoc_machine_probe(struct platform_device *pdev)
 			dev_dbg(&pdev->dev, "Unknown value, hence setting to default");
 		}
 	}
+	/*
+	 * The default insert level matches a normally closed jack switch
+	 * (qcom,headset-jack-type-NC on msm8226). Boards with a normally open
+	 * switch read the opposite level: on the Lumia 1520 the default takes
+	 * an empty jack for an inserted line out.
+	 */
+	if (of_property_read_bool(pdev->dev.of_node,
+				  "qcom,headset-jack-type-NO"))
+		mbhc_cfg.gpio_level_insert = 0;
+
 	if (of_property_read_bool(pdev->dev.of_node, "qcom,hdmi-audio-rx")) {
 		dev_info(&pdev->dev, "%s(): hdmi audio support present\n",
 				__func__);
