@@ -730,6 +730,22 @@
 		 * order, so writes and refresh run the same way.
 		 */
 		nokia,mdss-dsi-madctl = <0xd4>;
+		/*
+		 * Screen off/on: display off + sleep in, sleep out + display on,
+		 * the DCS part of the (commented out) stock panel sequences. The
+		 * panel keeps its rails and is never reset, so its registers
+		 * survive sleep; MADCTL is written again before display on. The
+		 * first unblank after boot sends nothing (continuous splash).
+		 * HS mode, like the tear-on and MADCTL writes that already work
+		 * on the PHY left by the UEFI.
+		 */
+		qcom,mdss-dsi-on-command = [05 01 00 00 78 00 02 11 00
+				15 01 00 00 00 00 02 36 d4
+				05 01 00 00 14 00 02 29 00];
+		qcom,mdss-dsi-off-command = [05 01 00 00 14 00 02 28 00
+				05 01 00 00 78 00 02 10 00];
+		qcom,mdss-dsi-on-command-state = "dsi_hs_mode";
+		qcom,mdss-dsi-off-command-state = "dsi_hs_mode";
 		qcom,mdss-dsi-mdp-trigger = "none";
 		qcom,mdss-dsi-dma-trigger = "trigger_sw";
 		/* tear check on the panel TE: transfers start at the read pointer */
