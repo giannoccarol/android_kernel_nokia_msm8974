@@ -129,6 +129,22 @@
 		};
 	};
 
+	/*
+	 * NFC (\_SB.NFC1, NXP_NFCC): NXP PN544 (HCI/LLC) on BLSP1 QUP6. VEN is
+	 * TLMM 57 (the chip answers only while it is high), the firmware
+	 * download line TLMM 85, the interrupt TLMM 59. Supply is S3, always
+	 * on; the reference clock is BBCLK2 (ref_clk lookup on 3-002b).
+	 */
+	i2c@f9928000 { /* BLSP1 QUP6 */
+		nfc@2b {
+			compatible = "nokia,bandit-pn544";
+			reg = <0x2b>;
+			nxp,irq-gpio = <&msmgpio 59 0>;
+			nxp,ven-gpio = <&msmgpio 57 0>;
+			nxp,firm-gpio = <&msmgpio 85 0>;
+		};
+	};
+
 	/* Touchscreen: Synaptics PLG0175-02 (RMI4), from the stock DSDT */
 	i2c@f9924000 {
 		synaptics@4b {

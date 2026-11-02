@@ -2,6 +2,14 @@
 # Near Field Communication (NFC) devices
 #
 
+config NFC_PN544_BANDIT
+	tristate "NXP PN544 character device (Nokia Lumia 1520)"
+	depends on I2C && OF
+	default n
+	help
+	  /dev/pn544 for the legacy Android NFC stack (libnfc-nxp) on the
+	  Nokia Lumia 1520. Independent of the kernel NFC subsystem.
+
 menu "Near Field Communication (NFC) devices"
 	depends on NFC
 

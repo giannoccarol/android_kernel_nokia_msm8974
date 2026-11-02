@@ -4921,6 +4921,8 @@ static struct clk_lookup msm_clocks_8974_common[] __initdata = {
 #ifndef CONFIG_MACH_OPPO
 	CLK_LOOKUP("ref_clk",  cxo_d1_a_pin.c,                   "6-000e"),
 #endif
+	/* Lumia 1520 PN544: BBCLK2, gated by the chip CLK_REQ */
+	CLK_LOOKUP("ref_clk",  cxo_d1_a_pin.c,                   "3-002b"),
 	CLK_LOOKUP("ref_clk_rf", cxo_a2_a_pin.c,                 "3-000e"),
 	CLK_LOOKUP("measure",	measure_clk.c,	"debug"),
 

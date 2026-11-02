@@ -449,6 +449,63 @@ static struct msm_gpiomux_config bandit_sensor_i2c_configs[] __initdata = {
 };
 
 /*
+ * Lumia 1520 NFC (\_SB.NFC1, NXP PN544): BLSP1 QUP6 I2C on TLMM 29/30, left
+ * unconfigured by the UEFI like the other buses, plus the chip lines: VEN
+ * (57) and firmware download (85) as outputs, the host interrupt (59) as an
+ * input with pull-down (active high).
+ */
+static struct gpiomux_setting bandit_nfc_out_cfg = {
+	.func = GPIOMUX_FUNC_GPIO,
+	.drv = GPIOMUX_DRV_2MA,
+	.pull = GPIOMUX_PULL_NONE,
+};
+
+static struct gpiomux_setting bandit_nfc_irq_cfg = {
+	.func = GPIOMUX_FUNC_GPIO,
+	.drv = GPIOMUX_DRV_2MA,
+	.pull = GPIOMUX_PULL_DOWN,
+	.dir = GPIOMUX_IN,
+};
+
+static struct msm_gpiomux_config bandit_nfc_configs[] __initdata = {
+	{
+		.gpio      = 29,		/* BLSP1 QUP6 I2C_DAT */
+		.settings = {
+			[GPIOMUX_ACTIVE] = &gpio_i2c_act_config,
+			[GPIOMUX_SUSPENDED] = &gpio_i2c_config,
+		},
+	},
+	{
+		.gpio      = 30,		/* BLSP1 QUP6 I2C_CLK */
+		.settings = {
+			[GPIOMUX_ACTIVE] = &gpio_i2c_act_config,
+			[GPIOMUX_SUSPENDED] = &gpio_i2c_config,
+		},
+	},
+	{
+		.gpio      = 57,		/* NFC VEN */
+		.settings = {
+			[GPIOMUX_ACTIVE] = &bandit_nfc_out_cfg,
+			[GPIOMUX_SUSPENDED] = &bandit_nfc_out_cfg,
+		},
+	},
+	{
+		.gpio      = 59,		/* NFC IRQ */
+		.settings = {
+			[GPIOMUX_ACTIVE] = &bandit_nfc_irq_cfg,
+			[GPIOMUX_SUSPENDED] = &bandit_nfc_irq_cfg,
+		},
+	},
+	{
+		.gpio      = 85,		/* NFC firmware download */
+		.settings = {
+			[GPIOMUX_ACTIVE] = &bandit_nfc_out_cfg,
+			[GPIOMUX_SUSPENDED] = &bandit_nfc_out_cfg,
+		},
+	},
+};
+
+/*
  * Lumia 1520 secondary MI2S (speaker amplifier), as the stock power state
  * of the codec muxes it: function 1, 2 mA, pull-down. Nothing requests these
  * pins at run time, so the function is set for both gpiomux states. TLMM 78
@@ -1660,6 +1717,8 @@ void __init msm_8974_init_gpiomux(void)
 				ARRAY_SIZE(bandit_sec_mi2s_configs));
 		msm_gpiomux_install(bandit_i2c5_configs,
 				ARRAY_SIZE(bandit_i2c5_configs));
+		msm_gpiomux_install(bandit_nfc_configs,
+				ARRAY_SIZE(bandit_nfc_configs));
 		pr_info("%s: keeping firmware pin configuration\n", __func__);
 		return;
 	}
