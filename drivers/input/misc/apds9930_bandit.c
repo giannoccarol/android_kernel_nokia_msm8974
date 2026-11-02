@@ -187,6 +187,7 @@ struct apds9930 {
 	unsigned int gain_idx;	/* current AGAIN field */
 	bool skip_als;		/* discard one sample after a gain change */
 	bool near;
+	unsigned int invalid;	/* polls in a row without valid data */
 };
 
 static int apds_write(struct apds9930 *chip, u8 reg, u8 val)
@@ -412,6 +413,23 @@ static void apds_work(struct work_struct *work)
 		apds_poll_light(chip, status, ch0, ch1);
 	else
 		apds_poll_prox(chip, status, pdata);
+
+	/*
+	 * Self-heal: the chip was seen asleep (ENABLE 0) while both the
+	 * cached state and the sysfs enable said it was running, so the
+	 * sensor reported 0 lux for ever. After a few polls without valid
+	 * data, forget the cached state and power the engines up again.
+	 */
+	if (!ret && (status & (s->type == APDS_LIGHT ?
+			       APDS_ST_AVALID : APDS_ST_PVALID))) {
+		chip->invalid = 0;
+	} else if (++chip->invalid >= 3) {
+		dev_warn_ratelimited(&chip->client->dev,
+				     "no valid data, re-enabling the chip\n");
+		chip->invalid = 0;
+		chip->enable = 0;
+		apds_update_enable(chip);
+	}
 
 	queue_delayed_work(system_freezable_wq, &s->work,
 			   msecs_to_jiffies(s->delay_ms));
