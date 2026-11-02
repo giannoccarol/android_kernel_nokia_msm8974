@@ -753,5 +753,20 @@
 		qcom,master-id = <86>;
 		qcom,scl-gpio = <&msmgpio 26 0>;
 		qcom,sda-gpio = <&msmgpio 25 0>;
+
+		/*
+		 * Loudspeaker amplifier (\_SB.VISA): TI TAS2552, identified
+		 * by its register map (VER_NUM 0x08). Audio in on the
+		 * secondary MI2S (SD1), I/V sense out on SD0, no MCLK: the
+		 * PLL runs from BCLK. PM8941 GPIO 20 is its enable
+		 * (nSHUTDOWN); the part does not answer while it is low.
+		 * VBAT, IOVDD and AVDD have no switchable supply in the stock
+		 * tables (no power resource on VISA), so none is listed.
+		 */
+		tas2552@40 {
+			compatible = "ti,tas2552";
+			reg = <0x40>;
+			enable-gpio = <&pm8941_gpios 20 0>;
+		};
 	};
 };
