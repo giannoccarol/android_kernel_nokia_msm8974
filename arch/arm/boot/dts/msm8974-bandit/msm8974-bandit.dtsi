@@ -162,6 +162,14 @@
 			 * read from F11/F12 (Android scales it to the panel).
 			 */
 			synaptics,i2c-pull-up;
+			/*
+			 * Capacitive keys below the panel (F1A 0D buttons):
+			 * back, start, search on Windows. The driver keeps
+			 * 8-bit codes, so search is sent as KEY_MENU and the
+			 * key layout makes it app switch. The 0dbutton sysfs
+			 * attribute turns them off for the navigation bar.
+			 */
+			synaptics,button-map = <158 172 139>;
 		};
 	};
 
