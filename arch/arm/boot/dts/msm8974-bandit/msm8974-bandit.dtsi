@@ -232,8 +232,9 @@
 
 	/*
 	 * Keep off everything that needs TrustZone services the Windows Phone
-	 * firmware may not provide (watchdog register save, TZ log, QSEECOM,
-	 * video). OCMEM and the Adreno 330 work: the OCMEM secure calls are
+	 * firmware may not provide (watchdog register save, TZ log, QSEECOM).
+	 * Venus (video) is loaded through PAS like the ADSP. OCMEM and the
+	 * Adreno 330 work: the OCMEM secure calls are
 	 * answered, and kgsl runs without the TZ DCVS governor.
 	 */
 	qcom,tz-log@fe805720 {
@@ -249,10 +250,10 @@
 		status = "ok";
 	};
 	qcom,vidc@fdc00000 {
-		status = "disabled";
+		status = "ok";
 	};
 	qcom,venus@fdce0000 {
-		status = "disabled";
+		status = "ok";	/* PAS proc 9: the TZ authenticates it */
 	};
 };
 
