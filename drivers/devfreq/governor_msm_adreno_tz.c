@@ -20,9 +20,46 @@
 #include <linux/ftrace.h>
 #include <linux/msm_adreno_devfreq.h>
 #include <mach/scm.h>
+#include <mach/tz-restricted.h>
 #include "governor.h"
 
 static DEFINE_SPINLOCK(tz_lock);
+
+/*
+ * Kernel DCVS: used when the TrustZone has no GPU DCVS service, as on the
+ * Windows Phone firmware of the Lumia 1520 (TZ_INIT_ID fails there and the
+ * TZ_UPDATE_ID answer never moves the GPU off its initial level). The
+ * decision is taken here from the busy ratio of the last window, one power
+ * level at a time, and no SCM call is made at all.
+ *  - up_threshold: busy percentage above which the next faster level is used;
+ *  - down_threshold: busy percentage below which the next slower level is used;
+ *  - window_us: minimum sample length (about two frames at 60 Hz).
+ */
+static bool kdcvs_active;
+static unsigned int kdcvs_up_threshold = 70;
+static unsigned int kdcvs_down_threshold = 30;
+static unsigned int kdcvs_window_us = 33000;
+module_param_named(kdcvs_up_threshold, kdcvs_up_threshold, uint, 0644);
+module_param_named(kdcvs_down_threshold, kdcvs_down_threshold, uint, 0644);
+module_param_named(kdcvs_window_us, kdcvs_window_us, uint, 0644);
+module_param_named(kdcvs_active, kdcvs_active, bool, 0444);
+
+static int kdcvs_update(struct devfreq *devfreq, int level,
+			s64 total_time, s64 busy_time)
+{
+	unsigned int load;
+
+	if (total_time <= 0)
+		return 0;
+	load = (unsigned int)div64_s64(busy_time * 100, total_time);
+
+	if (load > kdcvs_up_threshold && level > 0)
+		return -1;
+	if (load < kdcvs_down_threshold &&
+	    level < devfreq->profile->max_state - 1)
+		return 1;
+	return 0;
+}
 
 /*
  * FLOOR is 5msec to capture up to 3 re-draws
@@ -138,6 +175,8 @@ static int tz_get_target_freq(struct devfreq *devfreq, unsigned long *freq,
 		(unsigned int) priv->bin.busy_time < MIN_BUSY) {
 		return 0;
 	}
+	if (kdcvs_active && priv->bin.total_time < kdcvs_window_us)
+		return 0;
 
 	if ((stats.busy_time * 100 / stats.total_time) > BUSY_BIN) {
 		busy_bin += stats.busy_time;
@@ -164,6 +203,9 @@ static int tz_get_target_freq(struct devfreq *devfreq, unsigned long *freq,
 		val = -1 * level;
 		busy_bin = 0;
 		frame_flag = 0;
+	} else if (kdcvs_active) {
+		val = kdcvs_update(devfreq, level, priv->bin.total_time,
+				priv->bin.busy_time);
 	} else {
 		val = __secure_tz_entry3(TZ_UPDATE_ID,
 				level,
@@ -278,11 +320,20 @@ static int tz_start(struct devfreq *devfreq)
 		return -EINVAL;
 	}
 
-	ret = scm_call(SCM_SVC_DCVS, TZ_INIT_ID, tz_pwrlevels,
-			sizeof(tz_pwrlevels), NULL, 0);
-
-	if (ret != 0)
-		pr_err(TAG "tz_init failed\n");
+	if (msm_tz_restricted()) {
+		/* no GPU DCVS in this TrustZone: do not even ask */
+		ret = -ENODEV;
+	} else {
+		ret = scm_call(SCM_SVC_DCVS, TZ_INIT_ID, tz_pwrlevels,
+				sizeof(tz_pwrlevels), NULL, 0);
+		if (ret != 0)
+			pr_err(TAG "tz_init failed\n");
+	}
+	if (ret != 0 && !kdcvs_active)
+		pr_info(TAG "no TrustZone DCVS, using the kernel DCVS (up %u%%, down %u%%, window %u us)\n",
+			kdcvs_up_threshold, kdcvs_down_threshold,
+			kdcvs_window_us);
+	kdcvs_active = (ret != 0);
 
 	/* Set up the cut-over percentages for the bus calculation. */
 	if (priv->bus.num) {
@@ -330,7 +381,8 @@ static int tz_suspend(struct devfreq *devfreq)
 {
 	struct devfreq_msm_adreno_tz_data *priv = devfreq->data;
 
-	__secure_tz_entry2(TZ_RESET_ID, 0, 0);
+	if (!kdcvs_active)
+		__secure_tz_entry2(TZ_RESET_ID, 0, 0);
 
 	priv->bin.total_time = 0;
 	priv->bin.busy_time = 0;
