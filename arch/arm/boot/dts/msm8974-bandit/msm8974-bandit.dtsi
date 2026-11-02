@@ -613,16 +613,24 @@
 		qcom,mdss-dsi-te-pin-select = <0>;
 		/* vsync from the panel TE on MDP_VSYNC_P, as on Windows */
 		qcom,mdss-dsi-te-using-te-pin;
+		/* send the DCS tear-on (0x35) at unblank so the panel drives TE */
+		qcom,mdss-dsi-te-check-enable;
+		/*
+		 * MADCTL as the stock panel configuration sets it: the UEFI leaves
+		 * 0xc0 (frame memory written bottom-up, refreshed top-down: a tear
+		 * in the middle of the screen); 0xd4 also reverses the refresh
+		 * order, so writes and refresh run the same way.
+		 */
+		nokia,mdss-dsi-madctl = <0xd4>;
 		qcom,mdss-dsi-mdp-trigger = "none";
 		qcom,mdss-dsi-dma-trigger = "trigger_sw";
-		/* no tear check, as in the stock config (DSITECheckEnable) */
-		qcom,mdss-tear-check-disable;
-		qcom,mdss-tear-check-sync-cfg-height = <1925>;
-		qcom,mdss-tear-check-sync-init-val = <0>;
-		qcom,mdss-tear-check-sync-threshold-start = <480>;
-		qcom,mdss-tear-check-sync-threshold-continue = <5>;
-		qcom,mdss-tear-check-start-pos = <3>;
-		qcom,mdss-tear-check-rd-ptr-trigger-intr = <1>;
+		/* tear check on the panel TE: transfers start at the read pointer */
+		qcom,mdss-tear-check-sync-cfg-height = <0xfff0>;
+		qcom,mdss-tear-check-sync-init-val = <1920>;
+		qcom,mdss-tear-check-sync-threshold-start = <4>;
+		qcom,mdss-tear-check-sync-threshold-continue = <4>;
+		qcom,mdss-tear-check-start-pos = <1920>;
+		qcom,mdss-tear-check-rd-ptr-trigger-intr = <1921>;
 		qcom,mdss-tear-check-frame-rate = <6000>;
 		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
 		qcom,mdss-dsi-bl-min-level = <1>;

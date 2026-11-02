@@ -775,6 +775,9 @@ static int mdss_dsi_unblank(struct mdss_panel_data *pdata)
 		mipi->vsync_enable && mipi->hw_vsync_mode)
 		mdss_dsi_set_tear_on(ctrl_pdata);
 
+	if (ctrl_pdata->madctl >= 0)
+		mdss_dsi_set_address_mode(ctrl_pdata, ctrl_pdata->madctl);
+
 	mdss_livedisplay_update(pdata->panel_info.livedisplay,
 			MODE_UPDATE_ALL);
 

@@ -303,6 +303,7 @@ struct mdss_dsi_ctrl_pdata {
 #endif
 	int mode_gpio;
 	int bklt_ctrl;	/* backlight ctrl */
+	int madctl;	/* DCS set_address_mode sent at unblank, -1 = none */
 	int pwm_period;
 	int pwm_pmic_gpio;
 	int pwm_lpg_chan;

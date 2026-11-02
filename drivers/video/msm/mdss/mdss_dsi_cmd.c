@@ -608,6 +608,25 @@ static char set_tear_off[2] = {0x34, 0x00};
 static struct dsi_cmd_desc dsi_tear_off_cmd = {
 	{DTYPE_DCS_WRITE, 1, 0, 0, 0, sizeof(set_tear_off)}, set_tear_off};
 
+static char set_address_mode[2] = {0x36, 0x00};
+static struct dsi_cmd_desc dsi_address_mode_cmd = {
+	{DTYPE_DCS_WRITE1, 1, 0, 0, 0, sizeof(set_address_mode)},
+	set_address_mode};
+
+void mdss_dsi_set_address_mode(struct mdss_dsi_ctrl_pdata *ctrl, u8 mode)
+{
+	struct dcs_cmd_req cmdreq;
+
+	set_address_mode[1] = mode;
+	memset(&cmdreq, 0, sizeof(cmdreq));
+	cmdreq.cmds = &dsi_address_mode_cmd;
+	cmdreq.cmds_cnt = 1;
+	cmdreq.flags = CMD_REQ_COMMIT;
+	cmdreq.rlen = 0;
+	cmdreq.cb = NULL;
+	mdss_dsi_cmdlist_put(ctrl, &cmdreq);
+}
+
 void mdss_dsi_set_tear_on(struct mdss_dsi_ctrl_pdata *ctrl)
 {
 	struct dcs_cmd_req cmdreq;

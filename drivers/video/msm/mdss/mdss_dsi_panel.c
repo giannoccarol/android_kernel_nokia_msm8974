@@ -1202,6 +1202,14 @@ static int mdss_panel_parse_dt(struct device_node *np,
 		"qcom,mdss-dsi-te-dcs-command", &tmp);
 	pinfo->mipi.insert_dcs_cmd =
 			(!rc ? tmp : 1);
+	/*
+	 * Panels left on by the firmware (continuous splash, no on-commands)
+	 * may need their address mode set: the Lumia 1520 UEFI leaves MADCTL
+	 * at 0xc0, writing bottom-up into the frame memory while it refreshes
+	 * top-down, which tears in the middle of the screen.
+	 */
+	rc = of_property_read_u32(np, "nokia,mdss-dsi-madctl", &tmp);
+	ctrl_pdata->madctl = (!rc && tmp <= 0xff) ? (int)tmp : -1;
 	rc = of_property_read_u32(np,
 		"qcom,mdss-dsi-wr-mem-continue", &tmp);
 	pinfo->mipi.wr_mem_continue =
