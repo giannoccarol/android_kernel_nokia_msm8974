@@ -3045,7 +3045,6 @@ qpnp_chg_set_appropriate_battery_current(struct qpnp_chg_chip *chip)
 static int
 qpnp_chg_vddsafe_set(struct qpnp_chg_chip *chip, int voltage)
 {
-	int rc;
 	u8 temp;
 
 	if (voltage < QPNP_CHG_V_MIN_MV
@@ -3055,15 +3054,6 @@ qpnp_chg_vddsafe_set(struct qpnp_chg_chip *chip, int voltage)
 	}
 	temp = (voltage - QPNP_CHG_V_MIN_MV) / QPNP_CHG_V_STEP_MV;
 	pr_debug("voltage=%d setting %02x\n", voltage, temp);
-
-	/* VDD_SAFE is a secured register: unlock it, or the write is lost */
-	rc = qpnp_chg_masked_write(chip, chip->chgr_base + SEC_ACCESS,
-			0xFF, 0xA5, 1);
-	if (rc) {
-		pr_err("failed to write SEC_ACCESS rc=%d\n", rc);
-		return rc;
-	}
-
 	return qpnp_chg_write(chip, &temp,
 		chip->chgr_base + CHGR_VDD_SAFE, 1);
 }
@@ -4704,10 +4694,8 @@ qpnp_chg_load_battery_data(struct qpnp_chg_chip *chip)
 
 		if (batt_data.max_voltage_uv >= 0) {
 			chip->max_voltage_mv = batt_data.max_voltage_uv / 1000;
-			/* keep a vddsafe from the DT if it fits the profile */
-			if (chip->safe_voltage_mv < chip->max_voltage_mv)
-				chip->safe_voltage_mv = chip->max_voltage_mv
-					+ MAX_DELTA_VDD_MAX_MV;
+			chip->safe_voltage_mv = chip->max_voltage_mv
+				+ MAX_DELTA_VDD_MAX_MV;
 		}
 		if (batt_data.iterm_ua >= 0)
 			chip->term_current = batt_data.iterm_ua / 1000;
