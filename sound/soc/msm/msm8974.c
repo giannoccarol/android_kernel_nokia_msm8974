@@ -112,6 +112,14 @@ static const struct soc_enum msm8974_auxpcm_enum[] = {
 		SOC_ENUM_SINGLE_EXT(2, auxpcm_rate_text),
 };
 
+/*
+ * Secondary MI2S back ends: the Oppo N3 and the Nokia Lumia 1520 (bandit)
+ * both drive an external speaker amplifier from SEC_MI2S.
+ */
+#if defined(CONFIG_MACH_N3) || defined(CONFIG_MACH_NOKIA_BANDIT)
+#define MSM8974_SEC_MI2S_BE
+#endif
+
 #ifdef CONFIG_MACH_N3
 #define GPIO_SEC_MI2S_MCLK   78
 #define GPIO_SEC_MI2S_SCK    79
@@ -145,7 +153,9 @@ static struct request_gpio sec_mi2s_gpio[] = {
 		.gpio_name = "SEC_MI2S_DATA1",
 	},
 };
+#endif
 
+#ifdef MSM8974_SEC_MI2S_BE
 /* MI2S clock */
 struct mi2s_clk {
 	struct clk *core_clk;
@@ -1561,14 +1571,14 @@ static int msm_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 	return 0;
 }
 
-#ifdef CONFIG_MACH_N3
+#ifdef MSM8974_SEC_MI2S_BE
 static int msm_be_hw_params_fixup_sec_mi2s(struct snd_soc_pcm_runtime *rtd,
 					   struct snd_pcm_hw_params *params)
 {
 	struct snd_interval *rate = hw_param_interval(params,
 						      SNDRV_PCM_HW_PARAM_RATE);
 
-	pr_err("%s()\n", __func__);
+	pr_debug("%s()\n", __func__);
 	rate->min = rate->max = 48000;
 
 	param_set_mask(params, SNDRV_PCM_HW_PARAM_FORMAT,
@@ -2039,6 +2049,7 @@ static struct snd_soc_ops msm8974_be_ops = {
 	.shutdown = msm8974_snd_shudown,
 };
 
+#ifdef MSM8974_SEC_MI2S_BE
 #ifdef CONFIG_MACH_N3
 static int msm8974_mi2s_free_gpios(void)
 {
@@ -2059,6 +2070,22 @@ static struct afe_clk_cfg lpass_mi2s_enable = {
 	Q6AFE_LPASS_MODE_BOTH_VALID,
 	0,
 };
+#else
+/*
+ * Lumia 1520: the stock power state muxes only SCK (79), WS (80), SD1 (82,
+ * output) and SD0 (81, input). GPIO 78, the MI2S MCLK, belongs to another
+ * device, so run the bit clock alone: 48 kHz, two 32-bit slots.
+ */
+static struct afe_clk_cfg lpass_mi2s_enable = {
+	AFE_API_VERSION_I2S_CONFIG,
+	Q6AFE_LPASS_IBIT_CLK_3_P072_MHZ,
+	Q6AFE_LPASS_OSR_CLK_DISABLE,
+	Q6AFE_LPASS_CLK_SRC_INTERNAL,
+	Q6AFE_LPASS_CLK_ROOT_DEFAULT,
+	Q6AFE_LPASS_MODE_CLK1_VALID,
+	0,
+};
+#endif
 
 static struct afe_clk_cfg lpass_mi2s_disable = {
 	AFE_API_VERSION_I2S_CONFIG,
@@ -2082,10 +2109,13 @@ static void msm8974_mi2s_shutdown(struct snd_pcm_substream *substream)
 		if (ret < 0)
 			pr_err("%s: afe_set_lpass_clock failed\n", __func__);
 
+#ifdef CONFIG_MACH_N3
 		msm8974_mi2s_free_gpios();
+#endif
 	}
 }
 
+#ifdef CONFIG_MACH_N3
 static int msm8974_configure_mi2s_gpio(void)
 {
 	int ret;
@@ -2113,6 +2143,7 @@ static int msm8974_configure_mi2s_gpio(void)
 
 	return ret;
 }
+#endif
 
 static int msm8974_mi2s_startup(struct snd_pcm_substream *substream)
 {
@@ -2126,12 +2157,16 @@ static int msm8974_mi2s_startup(struct snd_pcm_substream *substream)
 
 	if (atomic_inc_return(&sec_mi2s_clk.mi2s_rsc_ref) == 1) {
 		pr_debug("%s: acquire mi2s resources\n", __func__);
+#ifdef CONFIG_MACH_N3
 		msm8974_configure_mi2s_gpio();
+#endif
 
 		ret = afe_set_lpass_clock(AFE_PORT_ID_SECONDARY_MI2S_RX,
 					  &lpass_mi2s_enable);
 		if (ret < 0) {
 			pr_err("%s: afe_set_lpass_clock failed\n", __func__);
+			/* let the next open retry the clock setup */
+			atomic_dec(&sec_mi2s_clk.mi2s_rsc_ref);
 			return ret;
 		}
 
@@ -3132,7 +3167,7 @@ static struct snd_soc_dai_link msm8974_common_dai_links[] = {
 		.be_hw_params_fixup = msm_be_hw_params_fixup,
 		.ignore_suspend = 1,
 	},
-#ifdef CONFIG_MACH_N3
+#ifdef MSM8974_SEC_MI2S_BE
 	{
 		.name = LPASS_BE_SEC_MI2S_RX,
 		.stream_name = "Secondary MI2S Playback",

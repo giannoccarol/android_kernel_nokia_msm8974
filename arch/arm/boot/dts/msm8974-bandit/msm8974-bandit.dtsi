@@ -712,3 +712,22 @@
 		qcom,cdc-on-demand-supplies = "cdc-vdd-spkdrv";
 	};
 };
+
+/*
+ * Loudspeaker: the stock audio routing pairs every speakerphone and
+ * ringtone stream with ACDB device 70 (SEC_MI2S_RX) and the feedback with
+ * device 74 (SEC_MI2S_TX). The codec power state muxes SCK (TLMM 79), WS
+ * (80) and SD1 (82) as outputs and SD0 (81) as an input, so playback leaves
+ * on SD1 and the amplifier answers on SD0. The MI2S MCLK pin (78) is used
+ * by another device and stays untouched.
+ */
+&soc {
+	qcom,msm-dai-mi2s {
+		qcom,msm-dai-q6-mi2s-sec {
+			compatible = "qcom,msm-dai-q6-mi2s";
+			qcom,msm-dai-q6-mi2s-dev-id = <1>;
+			qcom,msm-mi2s-rx-lines = <2>;	/* SD1, TLMM 82 */
+			qcom,msm-mi2s-tx-lines = <1>;	/* SD0, TLMM 81 */
+		};
+	};
+};

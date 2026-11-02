@@ -448,6 +448,49 @@ static struct msm_gpiomux_config bandit_sensor_i2c_configs[] __initdata = {
 	},
 };
 
+/*
+ * Lumia 1520 secondary MI2S (speaker amplifier), as the stock power state
+ * of the codec muxes it: function 1, 2 mA, pull-down. Nothing requests these
+ * pins at run time, so the function is set for both gpiomux states. TLMM 78
+ * (MI2S MCLK) is not part of it.
+ */
+static struct gpiomux_setting bandit_sec_mi2s_act_cfg = {
+	.func = GPIOMUX_FUNC_1,
+	.drv = GPIOMUX_DRV_2MA,
+	.pull = GPIOMUX_PULL_DOWN,
+};
+
+static struct msm_gpiomux_config bandit_sec_mi2s_configs[] __initdata = {
+	{
+		.gpio = 79,		/* SEC_MI2S_SCK */
+		.settings = {
+			[GPIOMUX_ACTIVE] = &bandit_sec_mi2s_act_cfg,
+			[GPIOMUX_SUSPENDED] = &bandit_sec_mi2s_act_cfg,
+		},
+	},
+	{
+		.gpio = 80,		/* SEC_MI2S_WS */
+		.settings = {
+			[GPIOMUX_ACTIVE] = &bandit_sec_mi2s_act_cfg,
+			[GPIOMUX_SUSPENDED] = &bandit_sec_mi2s_act_cfg,
+		},
+	},
+	{
+		.gpio = 81,		/* SEC_MI2S_DATA0: amplifier feedback in */
+		.settings = {
+			[GPIOMUX_ACTIVE] = &bandit_sec_mi2s_act_cfg,
+			[GPIOMUX_SUSPENDED] = &bandit_sec_mi2s_act_cfg,
+		},
+	},
+	{
+		.gpio = 82,		/* SEC_MI2S_DATA1: playback out */
+		.settings = {
+			[GPIOMUX_ACTIVE] = &bandit_sec_mi2s_act_cfg,
+			[GPIOMUX_SUSPENDED] = &bandit_sec_mi2s_act_cfg,
+		},
+	},
+};
+
 static struct gpiomux_setting hsic_sus_cfg = {
 	.func = GPIOMUX_FUNC_GPIO,
 	.drv = GPIOMUX_DRV_2MA,
@@ -1579,6 +1622,8 @@ void __init msm_8974_init_gpiomux(void)
 				ARRAY_SIZE(wcnss_5wire_interface));
 		msm_gpiomux_install(bandit_sensor_i2c_configs,
 				ARRAY_SIZE(bandit_sensor_i2c_configs));
+		msm_gpiomux_install(bandit_sec_mi2s_configs,
+				ARRAY_SIZE(bandit_sec_mi2s_configs));
 		pr_info("%s: keeping firmware pin configuration\n", __func__);
 		return;
 	}
