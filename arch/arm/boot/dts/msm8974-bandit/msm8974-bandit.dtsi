@@ -678,3 +678,37 @@
 &gdsc_mdss {
 	regulator-always-on;
 };
+
+/*
+ * Audio: WCD9320 (Taiko) codec on SLIMbus, reset on TLMM 63, interrupt on
+ * TLMM 72, as on the MTP. The stock ACPI power state of the codec
+ * (\_SB.ADSP.SLM1.ADCM.AUDD, PEP component 0) adds what the MTP gets from
+ * msm8974-mtp.dtsi, which this board does not include:
+ *  - PM8941 GPIO 15 as a digital output on special function 1 (DIV_CLK1,
+ *    the 9.6 MHz codec MCLK), VIN2, high drive strength. Without it the
+ *    pin stays an input and the codec never sees MCLK: capture returns
+ *    digital silence and MBHC cannot measure.
+ *  - component 1: the PM8941 5 V boost at up to 1.5 A, voted only for the
+ *    codec's own speaker driver (ACDB devices 67 and 69). It is the Taiko
+ *    VDD_SPKDRV supply.
+ */
+&pm8941_gpios {
+	gpio@ce00 { /* GPIO 15: codec MCLK (DIV_CLK1) */
+		qcom,mode = <1>;		/* digital output */
+		qcom,output-type = <0>;		/* CMOS */
+		qcom,pull = <5>;		/* no pull */
+		qcom,vin-sel = <2>;		/* VIN2, 1.8 V */
+		qcom,out-strength = <3>;	/* high, as on Windows */
+		qcom,src-sel = <2>;		/* function 1: DIV_CLK1 */
+		qcom,master-en = <1>;
+	};
+};
+
+&slim_msm {
+	taiko_codec {
+		cdc-vdd-spkdrv-supply = <&pm8941_boost>;
+		qcom,cdc-vdd-spkdrv-voltage = <5000000 5000000>;
+		qcom,cdc-vdd-spkdrv-current = <1250000>;
+		qcom,cdc-on-demand-supplies = "cdc-vdd-spkdrv";
+	};
+};
